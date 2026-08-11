@@ -18,15 +18,62 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Injektera anpassad CSS med Pikachu & Elektrisk Pokémon-känsla
+# Injektera anpassad CSS med Pokémon-font och sprites-banner
 st.markdown("""
 <style>
+    @import url('https://fonts.cdnfonts.com/css/pokemon-solid');
+
     /* Grundläggande mörk bakgrund */
     .main {
         background-color: #0E1117;
     }
+
+    /* Pokémon Logo Font Styling (Röd Ruta) */
+    .pokemon-font {
+        font-family: 'Pokemon Solid', sans-serif;
+        color: #FFDE00 !important;
+        -webkit-text-stroke: 2px #3B4CCA;
+        font-size: 3rem;
+        letter-spacing: 3px;
+        margin: 0;
+        line-height: 1.1;
+        text-shadow: 3px 3px 0px #1D2C5E;
+    }
+
+    /* Bannerlayout för Header & Sprites (Grön Ruta) */
+    .pokemon-banner {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 20px;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #2D3748;
+    }
+
+    .pokemon-sprites {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: rgba(26, 29, 36, 0.6);
+        padding: 8px 16px;
+        border-radius: 16px;
+        border: 1px solid #3A3D45;
+    }
+
+    .pokemon-sprites img {
+        height: 70px;
+        width: auto;
+        filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.5));
+        transition: transform 0.2s ease-in-out;
+    }
+
+    .pokemon-sprites img:hover {
+        transform: scale(1.25) translateY(-5px);
+    }
     
-    /* Pikachu-gul Accentfärg på Rubriker */
+    /* Pikachu-gul Accentfärg på Underrubriker */
     h1, h2, h3 {
         color: #FFDE00 !important;
         font-family: 'Trebuchet MS', sans-serif;
@@ -204,9 +251,24 @@ def get_usd_sek_rate(fetch_date):
     return 10.50
 
 # ==========================================
-# 3. APPTITEL & FLIKAR
+# 3. HEADER BANNER MED POKÉMON-FONT & SPRITES
 # ==========================================
-st.title("⚡ Courtyard K4-Räknare ⚡")
+st.markdown("""
+<div class="pokemon-banner">
+    <div>
+        <h1 class="pokemon-font">Pokémon</h1>
+        <h2 style="font-size: 1.8rem; margin: 0; color: #FFDE00 !important;">⚡ Courtyard K4-Räknare ⚡</h2>
+    </div>
+    <div class="pokemon-sprites">
+        <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/172.png" alt="Pichu" title="Pichu">
+        <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png" alt="Pikachu" title="Pikachu">
+        <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/26.png" alt="Raichu" title="Raichu">
+        <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/10100.png" alt="Alolan Raichu" title="Alolan Raichu">
+        <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/778.png" alt="Mimikyu" title="Mimikyu">
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
 st.caption("Pikachu-powered spårning av dina Pokémon- och samlarkort för Skatteverket.")
 
 tab1, tab2, tab3 = st.tabs(["📊 Översikt & Skatt", "➕ Registrera Nytt Köp", "🏧 Registrera Uttag"])
