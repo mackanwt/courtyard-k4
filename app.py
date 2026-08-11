@@ -15,16 +15,14 @@ def get_github_repo():
     g = Github(token)
     return g.get_repo(repo_name)
 
-
 def load_json_from_github(filename, default_value):
     try:
         repo = get_github_repo()
         file_content = repo.get_contents(filename)
         data = json.loads(file_content.decoded_content.decode("utf-8"))
         return data, file_content.sha
-    except Exception as e:
+    except Exception:
         return default_value, None
-
 
 def save_json_to_github(filename, data, sha, commit_message="Uppdatera data"):
     try:
@@ -35,14 +33,12 @@ def save_json_to_github(filename, data, sha, commit_message="Uppdatera data"):
         else:
             repo.create_file(filename, commit_message, json_str)
         
-        st.toast("✅ Sparat till GitHub!", icon="🎉")
         st.cache_data.clear()
         st.cache_resource.clear()
         return True
     except Exception as e:
         st.error(f"Kunde inte spara till GitHub: {e}")
         return False
-
 
 # --- HÄMTA VALUTAKURS ---
 @st.cache_data(ttl=3600)
@@ -60,14 +56,9 @@ def get_usd_sek_rate(date_str=None):
     except Exception:
         return 10.5
 
-
-# --- LÄS DATA FRÅN GITHUB ---
-cards_data, cards_sha = load_json_from_github(
-    "courtyard_cards_history.json", []
-)
-withdrawals_data, withdrawals_sha = load_json_from_github(
-    "courtyard_withdrawals_history.json", []
-)
+# --- LÄS DATA ---
+cards_data, cards_sha = load_json_from_github("courtyard_cards_history.json", [])
+withdrawals_data, withdrawals_sha = load_json_from_github("courtyard_withdrawals_history.json", [])
 
 st.title("🎴 Courtyard Skattehantering")
 
@@ -86,16 +77,12 @@ if menu == "Registrera Köp":
             buy_date = st.date_input("Köpdatum")
             img_url = st.text_input("Bild-URL (Valfritt)")
         with col2:
-            buy_usd = st.number_input(
-                "Inköpspris (USD)", min_value=0.0, step=0.1
-            )
+            buy_usd = st.number_input("Inköpspris (USD)", min_value=0.0, step=0.1)
             buy_link = st.text_input("Länk till köp/kort")
 
         rate = get_usd_sek_rate(str(buy_date))
         buy_sek = buy_usd * rate
-        st.info(
-            f"Beräknat inköpspris i SEK: **{buy_sek:.2f} SEK** (Kurs: {rate:.4f})"
-        )
+        st.info(f"Beräknat inköpspris i SEK: **{buy_sek:.2f} SEK** (Kurs: {rate:.4f})")
 
         submitted = st.form_submit_button("💾 Spara Köp")
         if submitted:
@@ -117,13 +104,7 @@ if menu == "Registrera Köp":
                     "Status": "Ägd",
                 }
                 cards_data.append(new_card)
-                success = save_json_to_github(
-                    "courtyard_cards_history.json",
-                    cards_data,
-                    cards_sha,
-                    f"Lade till köp: {name}",
-                )
-                if success:
+                if save_json_to_github("courtyard_cards_history.json", cards_data, cards_sha, f"Lade till köp: {name}"):
                     st.success(f"Kortet '{name}' har sparats!")
                     st.rerun()
 
@@ -137,31 +118,21 @@ elif menu == "Registrera Försäljning":
         st.warning("Du har inga ägda kort registrerade att sälja.")
     else:
         card_names = [f"{c['Name']} (Köpt: {c['Buy_Date']})" for c in owned_cards]
-        selected_idx = st.selectbox(
-            "Välj kort att sälja", range(len(card_names)), format_func=lambda x: card_names[x]
-        )
+        selected_idx = st.selectbox("Välj kort att sälja", range(len(card_names)), format_func=lambda x: card_names[x])
         selected_card = owned_cards[selected_idx]
 
         with st.form("sell_form"):
             sell_date = st.date_input("Försäljningsdatum")
-            sell_usd = st.number_input(
-                "Försäljningspris (USD)", min_value=0.0, step=0.1
-            )
+            sell_usd = st.number_input("Försäljningspris (USD)", min_value=0.0, step=0.1)
 
             sell_rate = get_usd_sek_rate(str(sell_date))
             sell_sek = sell_usd * sell_rate
-            st.info(
-                f"Beräknat försäljningspris i SEK: **{sell_sek:.2f} SEK** (Kurs: {sell_rate:.4f})"
-            )
+            st.info(f"Beräknat försäljningspris i SEK: **{sell_sek:.2f} SEK** (Kurs: {sell_rate:.4f})")
 
             submitted = st.form_submit_button("💰 Spara Försäljning")
             if submitted:
                 for c in cards_data:
-                    if (
-                        c["Name"] == selected_card["Name"]
-                        and c["Buy_Date"] == selected_card["Buy_Date"]
-                        and c["Status"] == "Ägd"
-                    ):
+                    if c["Name"] == selected_card["Name"] and c["Buy_Date"] == selected_card["Buy_Date"] and c["Status"] == "Ägd":
                         c["Sell_Date"] = str(sell_date)
                         c["Sell_USD"] = sell_usd
                         c["Sell_Currency_Rate"] = sell_rate
@@ -169,13 +140,7 @@ elif menu == "Registrera Försäljning":
                         c["Status"] = "Såld"
                         break
 
-                success = save_json_to_github(
-                    "courtyard_cards_history.json",
-                    cards_data,
-                    cards_sha,
-                    f"Sålde kort: {selected_card['Name']}",
-                )
-                if success:
+                if save_json_to_github("courtyard_cards_history.json", cards_data, cards_sha, f"Sålde kort: {selected_card['Name']}"):
                     st.success(f"Försäljningen av '{selected_card['Name']}' har sparats!")
                     st.rerun()
 
@@ -200,13 +165,7 @@ elif menu == "Registrera Uttag":
                 "SEK": w_sek,
             }
             withdrawals_data.append(new_w)
-            success = save_json_to_github(
-                "courtyard_withdrawals_history.json",
-                withdrawals_data,
-                withdrawals_sha,
-                "Lade till uttag",
-            )
-            if success:
+            if save_json_to_github("courtyard_withdrawals_history.json", withdrawals_data, withdrawals_sha, "Lade till uttag"):
                 st.success("Uttaget har sparats!")
                 st.rerun()
 
@@ -214,13 +173,53 @@ elif menu == "Registrera Uttag":
         st.subheader("Registrerade Uttag")
         st.dataframe(pd.DataFrame(withdrawals_data))
 
-# --- 4. ÖVERSIKT & K4 ---
+# --- 4. ÖVERSIKT, REDIGERING & K4 ---
 elif menu == "Översikt & K4":
     st.header("📊 Översikt & K4-underlag")
 
     if cards_data:
-        df_cards = pd.DataFrame(cards_data)
-        st.subheader("Alla Kort")
-        st.dataframe(df_cards)
+        df = pd.DataFrame(cards_data)
+
+        # Redigerbar tabell med bildvyer
+        st.subheader("📝 Hantera och Redigera Kort")
+        edited_df = st.data_editor(
+            df,
+            num_rows="dynamic",
+            use_container_width=True,
+            column_config={
+                "Bild": st.column_config.ImageColumn("Bild", help="Länk till kortbild"),
+                "Länk": st.column_config.LinkColumn("Länk"),
+            },
+            key="card_editor"
+        )
+
+        col_btn1, col_btn2 = st.columns([1, 5])
+        with col_btn1:
+            if st.button("💾 Spara Ändringar"):
+                updated_cards = edited_df.to_dict(orient="records")
+                if save_json_to_github("courtyard_cards_history.json", updated_cards, cards_sha, "Manuell redigering i tabell"):
+                    st.success("Ändringarna sparades!")
+                    st.rerun()
+
+        st.divider()
+
+        # K4 Sammanställning
+        st.subheader("🧮 K4 Skattesammanställning")
+        sold_cards = [c for c in cards_data if c.get("Status") == "Såld" and c.get("Sell_SEK") is not None]
+
+        if sold_cards:
+            total_sell = sum(c["Sell_SEK"] for c in sold_cards)
+            total_buy = sum(c["Buy_SEK"] for c in sold_cards)
+            profit_loss = total_sell - total_buy
+
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Totalt Försäljningspris", f"{total_sell:.2f} SEK")
+            c2.metric("Totalt Inköpspris", f"{total_buy:.2f} SEK")
+            c3.metric("Vinst / Förlust", f"{profit_loss:.2f} SEK")
+            
+            tax = profit_loss * 0.30 if profit_loss > 0 else 0.0
+            c4.metric("Uppskattad Skatt (30%)", f"{tax:.2f} SEK")
+        else:
+            st.info("Inga sålda kort registrerade ännu för K4-underlag.")
     else:
         st.info("Inga kort registrerade än.")
