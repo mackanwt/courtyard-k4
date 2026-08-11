@@ -199,9 +199,11 @@ def save_json_to_github(filename, data, sha, commit_message="Uppdatera data"):
 
 DATA_FILE = "courtyard_cards_history.json"
 WITHDRAWALS_FILE = "courtyard_withdrawals_history.json"
+DEPOSITS_FILE = "courtyard_deposits_history.json"
 
 cards, cards_sha = load_json_from_github(DATA_FILE, [])
 withdrawals, withdrawals_sha = load_json_from_github(WITHDRAWALS_FILE, [])
+deposits, deposits_sha = load_json_from_github(DEPOSITS_FILE, [])
 
 # ==========================================
 # 2. HJÄLPFUNKTIONER
@@ -272,7 +274,7 @@ st.markdown("""
 
 st.caption("Pikachu-powered spårning av dina Pokémon- och samlarkort för Skatteverket.")
 
-tab1, tab2, tab3 = st.tabs(["📊 Översikt & Skatt", "➕ Registrera Nytt Köp", "🏧 Registrera Uttag"])
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Översikt & Skatt", "➕ Registrera Nytt Köp", "📥 Registrera Insättning", "🏧 Registrera Uttag"])
 
 shared_column_config = {
     "Bild": st.column_config.ImageColumn("Bild", width="small"),
@@ -340,17 +342,50 @@ with tab2:
         else:
             st.error("Fyll i namn och inköpspris.")
 
-# --- FLIK 3: REGISTRERA UTTAG TILL BANK ---
+# --- FLIK 3: REGISTRERA INSÄTTNING ---
 with tab3:
+    st.subheader("📥 Registrera Insättning till Wallet")
+    st.caption("Fyll i när du sätter in nya pengar från ditt svenska bankkonto till din Courtyard Wallet.")
+    
+    col_d1, col_d2 = st.columns(2)
+    with col_d1:
+        d_date = st.date_input("Insättningsdatum", value=date.today(), key="dep_date")
+        d_usd = st.number_input("Antal USD insatta ($)", min_value=0.01, step=10.0, value=50.0, key="dep_usd")
+    with col_d2:
+        d_sek = st.number_input("Totalt betalt belopp i SEK (från banken)", min_value=0.0, step=100.0, value=525.0, key="dep_sek")
+        
+    st.write("")
+    if st.button("⚡ Spara Insättning", type="primary", use_container_width=True):
+        if d_usd > 0 and d_sek > 0:
+            new_deposit = {
+                "Datum": str(d_date),
+                "USD": float(d_usd),
+                "Betalt_SEK": float(d_sek)
+            }
+            deposits.append(new_deposit)
+            if save_json_to_github(DEPOSITS_FILE, deposits, deposits_sha, "Lade till insättning"):
+                st.success("✅ Insättning registrerad!")
+                st.rerun()
+        else:
+            st.error("Ange ett giltigt USD-belopp och betalt SEK-belopp.")
+
+    if deposits:
+        st.divider()
+        st.subheader("📜 Registrerade Insättningar")
+        df_d = pd.DataFrame(deposits)
+        st.dataframe(df_d, use_container_width=True)
+
+# --- FLIK 4: REGISTRERA UTTAG TILL BANK ---
+with tab4:
     st.subheader("🏧 Registrera Uttag till Bank")
     st.caption("Fyll i när du tar ut köpta USD/USDC från Courtyard till ditt svenska bankkonto.")
     
     col_u1, col_u2 = st.columns(2)
     with col_u1:
-        u_date = st.date_input("Uttagsdatum", value=date.today())
-        u_usd = st.number_input("Antal USD du tog ut ($)", min_value=0.01, step=10.0, value=50.0)
+        u_date = st.date_input("Uttagsdatum", value=date.today(), key="with_date")
+        u_usd = st.number_input("Antal USD du tog ut ($)", min_value=0.01, step=10.0, value=50.0, key="with_usd")
     with col_u2:
-        u_sek = st.number_input("Totalt erhållit belopp på banken (SEK)", min_value=0.0, step=100.0, value=500.0)
+        u_sek = st.number_input("Totalt erhållit belopp på banken (SEK)", min_value=0.0, step=100.0, value=500.0, key="with_sek")
         
     st.write("")
     if st.button("⚡ Spara Uttags-transaktion", type="primary", use_container_width=True):
@@ -375,7 +410,7 @@ with tab3:
 
 # --- FLIK 1: ÖVERSIKT & SKATT ---
 with tab1:
-    if cards:
+    if cards or deposits or withdrawals:
         if "edit_mode" not in st.session_state:
             st.session_state.edit_mode = False
 
@@ -551,8 +586,22 @@ with tab1:
 
         # --- B. GNS-PLÅNBOK & VALUTASKATT ---
         wallet_events = []
+
+        # 1. Manuella insättningar från bank
+        for d in deposits:
+            try:
+                wallet_events.append({
+                    "Datum": str(d["Datum"]),
+                    "Typ": "INFLÖDE",
+                    "Beskrivning": "Insättning från bank",
+                    "USD": float(d["USD"]),
+                    "SEK": float(d["Betalt_SEK"])
+                })
+            except Exception:
+                pass
+
+        # 2. Köp och försäljningar av kort
         for c in cards:
-            # Köp av kort räknas som UTFLÖDE från plånboken
             if c.get("Buy_USD") and float(c.get("Buy_USD") or 0) > 0:
                 try:
                     wallet_events.append({
@@ -565,7 +614,6 @@ with tab1:
                 except Exception:
                     pass
 
-            # Försäljning av kort räknas som INFLÖDE till plånboken
             if c.get("Status") == "Såld" and c.get("Sell_Date") and c.get("Sell_USD"):
                 try:
                     wallet_events.append({
@@ -578,6 +626,7 @@ with tab1:
                 except Exception:
                     pass
 
+        # 3. Uttag till bank
         for w in withdrawals:
             try:
                 wallet_events.append({
@@ -612,7 +661,6 @@ with tab1:
                     snittkurs = sek_omkostnad / usd_saldo
                     omkostnad_uttag = ev["USD"] * snittkurs
                     
-                    # Beräkna valutavinst/förlust endast vid uttag till bank
                     if "Uttag till bank" in ev["Beskrivning"]:
                         diff_valuta = ev["SEK"] - omkostnad_uttag
                         total_valuta_usd += ev["USD"]
@@ -701,4 +749,4 @@ with tab1:
                 st.caption("Inga bankuttag registrerade ännu.")
 
     else:
-        st.info("Inga kort registrerade ännu. Gå till fliken 'Registrera Nytt Köp' för att börja!")
+        st.info("Ingen data hittades. Gå till flikarna ovan för att registrera dina köp, insättningar eller uttag!")
