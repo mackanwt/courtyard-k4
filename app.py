@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
-import json
-import os
 import requests
 import base64
 import mimetypes
 from datetime import datetime, date
+from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(page_title="Courtyard K4-Räknare", layout="wide")
 
@@ -26,47 +25,46 @@ st.title("🃏 Courtyard K4-Räknare")
 st.caption("Manuell och exakt spårning av dina kort och plånbok för Skatteverket.")
 
 # ==========================================
-# 1. FIL- & DATAHANTERING
+# 1. GOOGLE SHEETS ANSLUTNING
 # ==========================================
-DATA_FILE = "courtyard_cards_history.json"
-WITHDRAWALS_FILE = "courtyard_withdrawals_history.json"
+conn = st.connection("gsheets", type=GSheetsConnection)
 
-if not os.path.exists(DATA_FILE):
-    with open(DATA_FILE, "w") as f:
-        json.dump([], f)
+def load_data():
+    try:
+        cards_df = conn.read(worksheet="Cards", ttl=0)
+        cards_data = cards_df.to_dict(orient="records") if not cards_df.empty else []
+    except Exception:
+        cards_data = []
 
-if not os.path.exists(WITHDRAWALS_FILE):
-    with open(WITHDRAWALS_FILE, "w") as f:
-        json.dump([], f)
+    try:
+        withdrawals_df = conn.read(worksheet="Withdrawals", ttl=0)
+        withdrawals_data = withdrawals_df.to_dict(orient="records") if not withdrawals_df.empty else []
+    except Exception:
+        withdrawals_data = []
 
-with open(DATA_FILE, "r") as f:
-    cards = json.load(f)
+    return cards_data, withdrawals_data
 
-with open(WITHDRAWALS_FILE, "r") as f:
-    withdrawals = json.load(f)
+def save_cards(cards_data):
+    df_to_save = pd.DataFrame(cards_data)
+    conn.update(worksheet="Cards", data=df_to_save)
+
+def save_withdrawals(withdrawals_data):
+    df_to_save = pd.DataFrame(withdrawals_data)
+    conn.update(worksheet="Withdrawals", data=df_to_save)
+
+cards, withdrawals = load_data()
 
 # ==========================================
 # 2. HJÄLPFUNKTIONER
 # ==========================================
 def format_image_source(img_input):
-    if not img_input:
+    if not img_input or pd.isna(img_input):
         return ""
     
     clean_path = str(img_input).strip().strip('"').strip("'")
     
     if clean_path.startswith("http://") or clean_path.startswith("https://") or clean_path.startswith("data:image/"):
         return clean_path
-    
-    if os.path.exists(clean_path) and os.path.isfile(clean_path):
-        try:
-            mime_type, _ = mimetypes.guess_type(clean_path)
-            if not mime_type:
-                mime_type = "image/png"
-            with open(clean_path, "rb") as image_file:
-                encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
-            return f"data:{mime_type};base64,{encoded_string}"
-        except Exception:
-            return ""
             
     return ""
 
@@ -134,25 +132,12 @@ with tab2:
 
     with col_b:
         card_url = st.text_input("Sida på Courtyard (Valfritt)", placeholder="https://courtyard.io/card/...")
-        
-        st.write("**📷 Bild på kortet:**")
-        local_path = st.text_input(
-            "Klistra in sökvägen till bilden på datorn (Ctrl+V)", 
-            placeholder=r"D:\Users\marcu\Desktop\Skärmbild 2026-08-09 215606.png"
-        )
-        image_url = st.text_input("Eller klistra in en Bild-URL (valfritt)", placeholder="https://...")
+        image_url = st.text_input("Bild-URL (valfritt)", placeholder="https://...")
 
     if st.button("💾 Spara Köp", type="primary"):
         if b_name and b_usd > 0:
-            img_data = ""
-            
-            if local_path:
-                img_data = format_image_source(local_path)
-            elif image_url:
-                img_data = image_url
-
             new_card = {
-                "Bild": img_data,
+                "Bild": image_url if image_url else "",
                 "Länk": card_url if card_url else "",
                 "Name": b_name,
                 "Buy_Date": str(b_date),
@@ -166,8 +151,7 @@ with tab2:
                 "Status": "Äger kvar"
             }
             cards.append(new_card)
-            with open(DATA_FILE, "w") as f:
-                json.dump(cards, f, indent=4)
+            save_cards(cards)
             st.success(f"Lade till {b_name}!")
             st.rerun()
         else:
@@ -193,8 +177,7 @@ with tab3:
                 "Erhållen_SEK": float(u_sek)
             }
             withdrawals.append(new_withdrawal)
-            with open(WITHDRAWALS_FILE, "w") as f:
-                json.dump(withdrawals, f, indent=4)
+            save_withdrawals(withdrawals)
             st.success("Uttag registrerat!")
             st.rerun()
         else:
@@ -225,14 +208,7 @@ with tab1:
                     st.session_state.edit_mode = True
                     st.rerun()
 
-        cleaned_cards = []
-        for c in cards:
-            c_copy = c.copy()
-            if c_copy.get("Bild") and not str(c_copy["Bild"]).startswith("data:") and not str(c_copy["Bild"]).startswith("http"):
-                c_copy["Bild"] = format_image_source(c_copy["Bild"])
-            cleaned_cards.append(c_copy)
-
-        df = pd.DataFrame(cleaned_cards)
+        df = pd.DataFrame(cards)
 
         cols_order = ["Bild", "Länk", "Name", "Buy_Date", "Buy_USD", "Buy_Currency_Rate", "Buy_SEK", "Sell_Date", "Sell_USD", "Sell_Currency_Rate", "Sell_SEK", "Status"]
         for c in cols_order:
@@ -287,8 +263,7 @@ with tab1:
                 except Exception:
                     pass
 
-            with open(DATA_FILE, "w") as f:
-                json.dump(updated_data, f, indent=4)
+            save_cards(updated_data)
         else:
             st.caption("Klicka på 🗑️ till vänster för att radera en rad direkt.")
             
@@ -297,8 +272,7 @@ with tab1:
                 with col_del:
                     if st.button("🗑️", key=f"del_{idx}", help="Radera denna rad"):
                         cards.pop(idx)
-                        with open(DATA_FILE, "w") as f:
-                            json.dump(cards, f, indent=4)
+                        save_cards(cards)
                         st.rerun()
                 with col_data:
                     row_df = pd.DataFrame([row])
