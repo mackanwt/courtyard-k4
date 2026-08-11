@@ -165,7 +165,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. GITHUB DATAHANTERING
+# 1. GITHUB DATAHANTERING & ADMIN-KONTROLL
 # ==========================================
 def get_github_repo():
     token = st.secrets["GITHUB_TOKEN"]
@@ -196,6 +196,12 @@ def save_json_to_github(filename, data, sha, commit_message="Uppdatera data"):
     except Exception as e:
         st.error(f"Kunde inte spara till GitHub: {e}")
         return False
+
+# Hämta admin lösenord från secrets (eller använd standard om saknas)
+ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "1234")
+
+if "is_admin" not in st.session_state:
+    st.session_state.is_admin = False
 
 DATA_FILE = "courtyard_cards_history.json"
 WITHDRAWALS_FILE = "courtyard_withdrawals_history.json"
@@ -272,9 +278,31 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-st.caption("Pikachu-powered spårning av dina Pokémon- och samlarkort för Skatteverket.")
+# Admin Inloggning Längst Uppe
+top_col1, top_col2 = st.columns([3, 1])
+with top_col1:
+    st.caption("Pikachu-powered spårning av dina Pokémon- och samlarkort för Skatteverket.")
+with top_col2:
+    if not st.session_state.is_admin:
+        with st.popover("🔑 Logga in som Admin"):
+            pwd_input = st.text_input("Lösenord", type="password", key="admin_pwd_input")
+            if st.button("Logga in", type="primary"):
+                if pwd_input == ADMIN_PASSWORD:
+                    st.session_state.is_admin = True
+                    st.success("Inloggad!")
+                    st.rerun()
+                else:
+                    st.error("Fel lösenord!")
+    else:
+        if st.button("🔓 Admin Inloggad (Logga ut)"):
+            st.session_state.is_admin = False
+            st.rerun()
 
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Översikt & Skatt", "➕ Registrera Nytt Köp", "📥 Registrera Insättning", "🏧 Registrera Uttag"])
+# Om man inte är admin, visa bara Översikt. Om admin, visa alla flikar!
+if st.session_state.is_admin:
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Översikt & Skatt", "➕ Registrera Nytt Köp", "📥 Registrera Insättning", "🏧 Registrera Uttag"])
+else:
+    tab1, = st.tabs(["📊 Översikt & Skatt"])
 
 shared_column_config = {
     "Bild": st.column_config.ImageColumn("Bild", width="small"),
@@ -293,120 +321,121 @@ shared_column_config = {
 
 cols_order = ["Bild", "Länk", "Name", "Buy_Date", "Buy_USD", "Buy_Currency_Rate", "Buy_SEK", "Sell_Date", "Sell_USD", "Sell_Currency_Rate", "Sell_SEK", "Status"]
 
-# --- FLIK 2: REGISTRERA NYTT KÖP ---
-with tab2:
-    st.subheader("⚡ Lägg till nytt kort i samlingen")
-    
-    col_a, col_b = st.columns(2)
-    with col_a:
-        b_name = st.text_input("Kort / Paket Namn", placeholder="t.ex. Pikachu Special Art Rare")
-        b_date = st.date_input("Köpdatum", value=date.today())
+# --- FLIK 2: REGISTRERA NYTT KÖP (ENBART ADMIN) ---
+if st.session_state.is_admin:
+    with tab2:
+        st.subheader("⚡ Lägg till nytt kort i samlingen")
         
-        auto_rate = get_usd_sek_rate(b_date)
-        b_rate = st.number_input("USD/SEK Kurs (Hämtad från ECB)", value=auto_rate, step=0.01)
-        b_usd = st.number_input("Inköpspris (USD)", min_value=0.0, step=1.0, value=50.0)
+        col_a, col_b = st.columns(2)
+        with col_a:
+            b_name = st.text_input("Kort / Paket Namn", placeholder="t.ex. Pikachu Special Art Rare")
+            b_date = st.date_input("Köpdatum", value=date.today())
+            
+            auto_rate = get_usd_sek_rate(b_date)
+            b_rate = st.number_input("USD/SEK Kurs (Hämtad från ECB)", value=auto_rate, step=0.01)
+            b_usd = st.number_input("Inköpspris (USD)", min_value=0.0, step=1.0, value=50.0)
+            
+            st.markdown(f"💳 **Beräknat inköpspris:** `{round(b_usd * b_rate, 2)} SEK`")
+
+        with col_b:
+            card_url = st.text_input("Sida på Courtyard (Valfritt)", placeholder="https://courtyard.io/card/...")
+            st.write("🖼️ **Bild på kortet:**")
+            local_path = st.text_input(
+                "Klistra in bild-URL", 
+                placeholder="https://... eller D:\\Mapp\\bild.png"
+            )
+
+        st.write("")
+        if st.button("⚡ Spara Köp i Samlingen", type="primary", use_container_width=True):
+            if b_name and b_usd > 0:
+                img_data = format_image_source(local_path) if local_path else ""
+
+                new_card = {
+                    "Bild": img_data,
+                    "Länk": card_url if card_url else "",
+                    "Name": b_name,
+                    "Buy_Date": str(b_date),
+                    "Buy_USD": float(b_usd),
+                    "Buy_Currency_Rate": float(b_rate),
+                    "Buy_SEK": round(float(b_usd) * float(b_rate), 2),
+                    "Sell_Date": "",
+                    "Sell_USD": None,
+                    "Sell_Currency_Rate": None,
+                    "Sell_SEK": None,
+                    "Status": "Äger kvar"
+                }
+                cards.append(new_card)
+                if save_json_to_github(DATA_FILE, cards, cards_sha, f"Lade till köp: {b_name}"):
+                    st.success(f"⚡ Lade till {b_name}!")
+                    st.rerun()
+            else:
+                st.error("Fyll i namn och inköpspris.")
+
+    # --- FLIK 3: REGISTRERA INSÄTTNING (ENBART ADMIN) ---
+    with tab3:
+        st.subheader("📥 Registrera Insättning till Wallet")
+        st.caption("Fyll i när du sätter in nya pengar från ditt svenska bankkonto till din Courtyard Wallet.")
         
-        st.markdown(f"💳 **Beräknat inköpspris:** `{round(b_usd * b_rate, 2)} SEK`")
+        col_d1, col_d2 = st.columns(2)
+        with col_d1:
+            d_date = st.date_input("Insättningsdatum", value=date.today(), key="dep_date")
+            d_usd = st.number_input("Antal USD insatta ($)", min_value=0.01, step=10.0, value=50.0, key="dep_usd")
+        with col_d2:
+            d_sek = st.number_input("Totalt betalt belopp i SEK (från banken)", min_value=0.0, step=100.0, value=525.0, key="dep_sek")
+            
+        st.write("")
+        if st.button("⚡ Spara Insättning", type="primary", use_container_width=True):
+            if d_usd > 0 and d_sek > 0:
+                new_deposit = {
+                    "Datum": str(d_date),
+                    "USD": float(d_usd),
+                    "Betalt_SEK": float(d_sek)
+                }
+                deposits.append(new_deposit)
+                if save_json_to_github(DEPOSITS_FILE, deposits, deposits_sha, "Lade till insättning"):
+                    st.success("✅ Insättning registrerad!")
+                    st.rerun()
+            else:
+                st.error("Ange ett giltigt USD-belopp och betalt SEK-belopp.")
 
-    with col_b:
-        card_url = st.text_input("Sida på Courtyard (Valfritt)", placeholder="https://courtyard.io/card/...")
-        st.write("🖼️ **Bild på kortet:**")
-        local_path = st.text_input(
-            "Klistra in bild-URL", 
-            placeholder="https://... eller D:\\Mapp\\bild.png"
-        )
+        if deposits:
+            st.divider()
+            st.subheader("📜 Registrerade Insättningar")
+            df_d = pd.DataFrame(deposits)
+            st.dataframe(df_d, use_container_width=True)
 
-    st.write("")
-    if st.button("⚡ Spara Köp i Samlingen", type="primary", use_container_width=True):
-        if b_name and b_usd > 0:
-            img_data = format_image_source(local_path) if local_path else ""
-
-            new_card = {
-                "Bild": img_data,
-                "Länk": card_url if card_url else "",
-                "Name": b_name,
-                "Buy_Date": str(b_date),
-                "Buy_USD": float(b_usd),
-                "Buy_Currency_Rate": float(b_rate),
-                "Buy_SEK": round(float(b_usd) * float(b_rate), 2),
-                "Sell_Date": "",
-                "Sell_USD": None,
-                "Sell_Currency_Rate": None,
-                "Sell_SEK": None,
-                "Status": "Äger kvar"
-            }
-            cards.append(new_card)
-            if save_json_to_github(DATA_FILE, cards, cards_sha, f"Lade till köp: {b_name}"):
-                st.success(f"⚡ Lade till {b_name}!")
-                st.rerun()
-        else:
-            st.error("Fyll i namn och inköpspris.")
-
-# --- FLIK 3: REGISTRERA INSÄTTNING ---
-with tab3:
-    st.subheader("📥 Registrera Insättning till Wallet")
-    st.caption("Fyll i när du sätter in nya pengar från ditt svenska bankkonto till din Courtyard Wallet.")
-    
-    col_d1, col_d2 = st.columns(2)
-    with col_d1:
-        d_date = st.date_input("Insättningsdatum", value=date.today(), key="dep_date")
-        d_usd = st.number_input("Antal USD insatta ($)", min_value=0.01, step=10.0, value=50.0, key="dep_usd")
-    with col_d2:
-        d_sek = st.number_input("Totalt betalt belopp i SEK (från banken)", min_value=0.0, step=100.0, value=525.0, key="dep_sek")
+    # --- FLIK 4: REGISTRERA UTTAG TILL BANK (ENBART ADMIN) ---
+    with tab4:
+        st.subheader("🏧 Registrera Uttag till Bank")
+        st.caption("Fyll i när du tar ut köpta USD/USDC från Courtyard till ditt svenska bankkonto.")
         
-    st.write("")
-    if st.button("⚡ Spara Insättning", type="primary", use_container_width=True):
-        if d_usd > 0 and d_sek > 0:
-            new_deposit = {
-                "Datum": str(d_date),
-                "USD": float(d_usd),
-                "Betalt_SEK": float(d_sek)
-            }
-            deposits.append(new_deposit)
-            if save_json_to_github(DEPOSITS_FILE, deposits, deposits_sha, "Lade till insättning"):
-                st.success("✅ Insättning registrerad!")
-                st.rerun()
-        else:
-            st.error("Ange ett giltigt USD-belopp och betalt SEK-belopp.")
+        col_u1, col_u2 = st.columns(2)
+        with col_u1:
+            u_date = st.date_input("Uttagsdatum", value=date.today(), key="with_date")
+            u_usd = st.number_input("Antal USD du tog ut ($)", min_value=0.01, step=10.0, value=50.0, key="with_usd")
+        with col_u2:
+            u_sek = st.number_input("Totalt erhållit belopp på banken (SEK)", min_value=0.0, step=100.0, value=500.0, key="with_sek")
+            
+        st.write("")
+        if st.button("⚡ Spara Uttags-transaktion", type="primary", use_container_width=True):
+            if u_usd > 0 and u_sek > 0:
+                new_withdrawal = {
+                    "Datum": str(u_date),
+                    "USD": float(u_usd),
+                    "Erhållen_SEK": float(u_sek)
+                }
+                withdrawals.append(new_withdrawal)
+                if save_json_to_github(WITHDRAWALS_FILE, withdrawals, withdrawals_sha, "Lade till uttag"):
+                    st.success("✅ Uttag registrerat!")
+                    st.rerun()
+            else:
+                st.error("Ange ett giltigt USD-belopp och erhållit SEK-belopp.")
 
-    if deposits:
-        st.divider()
-        st.subheader("📜 Registrerade Insättningar")
-        df_d = pd.DataFrame(deposits)
-        st.dataframe(df_d, use_container_width=True)
-
-# --- FLIK 4: REGISTRERA UTTAG TILL BANK ---
-with tab4:
-    st.subheader("🏧 Registrera Uttag till Bank")
-    st.caption("Fyll i när du tar ut köpta USD/USDC från Courtyard till ditt svenska bankkonto.")
-    
-    col_u1, col_u2 = st.columns(2)
-    with col_u1:
-        u_date = st.date_input("Uttagsdatum", value=date.today(), key="with_date")
-        u_usd = st.number_input("Antal USD du tog ut ($)", min_value=0.01, step=10.0, value=50.0, key="with_usd")
-    with col_u2:
-        u_sek = st.number_input("Totalt erhållit belopp på banken (SEK)", min_value=0.0, step=100.0, value=500.0, key="with_sek")
-        
-    st.write("")
-    if st.button("⚡ Spara Uttags-transaktion", type="primary", use_container_width=True):
-        if u_usd > 0 and u_sek > 0:
-            new_withdrawal = {
-                "Datum": str(u_date),
-                "USD": float(u_usd),
-                "Erhållen_SEK": float(u_sek)
-            }
-            withdrawals.append(new_withdrawal)
-            if save_json_to_github(WITHDRAWALS_FILE, withdrawals, withdrawals_sha, "Lade till uttag"):
-                st.success("✅ Uttag registrerat!")
-                st.rerun()
-        else:
-            st.error("Ange ett giltigt USD-belopp och erhållit SEK-belopp.")
-
-    if withdrawals:
-        st.divider()
-        st.subheader("📜 Registrerade Bankuttag")
-        df_w = pd.DataFrame(withdrawals)
-        st.dataframe(df_w, use_container_width=True)
+        if withdrawals:
+            st.divider()
+            st.subheader("📜 Registrerade Bankuttag")
+            df_w = pd.DataFrame(withdrawals)
+            st.dataframe(df_w, use_container_width=True)
 
 # --- FLIK 1: ÖVERSIKT & SKATT ---
 with tab1:
@@ -418,7 +447,7 @@ with tab1:
         with col_head:
             st.subheader("📜 Samling & Innehav")
         with col_btn:
-            if not st.session_state.edit_mode:
+            if st.session_state.is_admin and not st.session_state.edit_mode:
                 if st.button("✏️ Redigera Tabell", use_container_width=True):
                     st.session_state.edit_mode = True
                     st.rerun()
@@ -441,7 +470,7 @@ with tab1:
         df["Buy_Date"] = pd.to_datetime(df["Buy_Date"], errors="coerce").dt.date
         df["Sell_Date"] = pd.to_datetime(df["Sell_Date"], errors="coerce").dt.date
 
-        if st.session_state.edit_mode:
+        if st.session_state.is_admin and st.session_state.edit_mode:
             st.info("💡 **Redigeringsläge:** Ändra värden fritt nedan. Tryck på **'⚡ Spara alla ändringar'** när du är klar.")
             
             with st.form("table_edit_form"):
@@ -518,22 +547,32 @@ with tab1:
                 st.rerun()
 
         else:
-            for idx, row in df.iterrows():
-                col_del, col_data = st.columns([0.3, 9.7])
-                with col_del:
-                    if st.button("🗑️", key=f"del_{idx}", help="Radera rad"):
-                        cards.pop(idx)
-                        if save_json_to_github(DATA_FILE, cards, cards_sha, f"Tog bort rad {idx}"):
-                            st.rerun()
-                with col_data:
-                    row_df = pd.DataFrame([row])
-                    st.dataframe(
-                        row_df,
-                        column_config=shared_column_config,
-                        column_order=cols_order,
-                        hide_index=True,
-                        use_container_width=True
-                    )
+            if st.session_state.is_admin:
+                for idx, row in df.iterrows():
+                    col_del, col_data = st.columns([0.3, 9.7])
+                    with col_del:
+                        if st.button("🗑️", key=f"del_{idx}", help="Radera rad"):
+                            cards.pop(idx)
+                            if save_json_to_github(DATA_FILE, cards, cards_sha, f"Tog bort rad {idx}"):
+                                st.rerun()
+                    with col_data:
+                        row_df = pd.DataFrame([row])
+                        st.dataframe(
+                            row_df,
+                            column_config=shared_column_config,
+                            column_order=cols_order,
+                            hide_index=True,
+                            use_container_width=True
+                        )
+            else:
+                # Skrivskyddad tabell för vanliga besökare
+                st.dataframe(
+                    df,
+                    column_config=shared_column_config,
+                    column_order=cols_order,
+                    hide_index=True,
+                    use_container_width=True
+                )
 
         # --- A. KORT-SKATTEBERÄKNING ---
         total_gains_sek = 0.0
@@ -749,4 +788,4 @@ with tab1:
                 st.caption("Inga bankuttag registrerade ännu.")
 
     else:
-        st.info("Ingen data hittades. Gå till flikarna ovan för att registrera dina köp, insättningar eller uttag!")
+        st.info("Ingen data hittades. Logga in som Admin för att lägga till köp, insättningar eller uttag!")
