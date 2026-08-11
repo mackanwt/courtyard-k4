@@ -8,10 +8,116 @@ import requests
 import streamlit as st
 from github import Github
 
-st.set_page_config(page_title="Courtyard K4-Räknare", layout="wide")
+# ==========================================
+# 0. SIDINSTÄLLNINGAR & PIKACHU / LIGHTNING CSS
+# ==========================================
+st.set_page_config(
+    page_title="Courtyard K4-Räknare | Pokémon Edition",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+# Injektera anpassad CSS med Pikachu & Elektrisk Pokémon-känsla
+st.markdown("""
+<style>
+    /* Grundläggande mörk bakgrund */
+    .main {
+        background-color: #0E1117;
+    }
+    
+    /* Pikachu-gul Accentfärg på Rubriker */
+    h1, h2, h3 {
+        color: #FFDE00 !important;
+        font-family: 'Trebuchet MS', sans-serif;
+    }
+
+    /* Metric-boxar med elektrisk glöd vid hover */
+    div[data-testid="stMetric"] {
+        background-color: #1A1D24;
+        border: 1px solid #3A3D45;
+        padding: 16px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        transition: all 0.25s ease-in-out;
+    }
+    div[data-testid="stMetric"]:hover {
+        border-color: #FFDE00;
+        box-shadow: 0 0 12px rgba(255, 222, 0, 0.35);
+        transform: translateY(-2px);
+    }
+    div[data-testid="stMetricLabel"] {
+        font-size: 0.85rem !important;
+        color: #A0AEC0 !important;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    div[data-testid="stMetricValue"] {
+        font-size: 1.5rem !important;
+        font-weight: 700;
+        color: #FFFFFF !important;
+    }
+
+    /* Flikar med Pikachu-gul markering */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #14171F;
+        padding: 6px;
+        border-radius: 10px;
+        border: 1px solid #2D3748;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 45px;
+        white-space: pre-wrap;
+        border-radius: 8px;
+        color: #A0AEC0;
+        font-weight: 600;
+        padding: 0px 16px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #FFDE00 !important;
+        color: #000000 !important;
+        font-weight: 700;
+        box-shadow: 0 0 10px rgba(255, 222, 0, 0.4);
+    }
+
+    /* Elektriska Knappar (Primary) */
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #FFDE00 0%, #E6B800 100%) !important;
+        color: #000000 !important;
+        font-weight: 700 !important;
+        border: none !important;
+        border-radius: 8px !important;
+        box-shadow: 0 4px 10px rgba(255, 222, 0, 0.3) !important;
+        transition: all 0.2s ease !important;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        box-shadow: 0 0 15px rgba(255, 222, 0, 0.6) !important;
+        transform: scale(1.01);
+    }
+
+    /* Elektrisk Avdelare */
+    hr {
+        margin: 2rem 0 !important;
+        border-color: #3A3D45 !important;
+    }
+
+    /* Pikachu Highlight-kort för Nettovinst */
+    .pikachu-card {
+        background: linear-gradient(135deg, #2A2400 0%, #1A1700 100%);
+        padding: 22px;
+        border-radius: 14px;
+        border: 2px solid #FFDE00;
+        margin-bottom: 20px;
+        box-shadow: 0 0 18px rgba(255, 222, 0, 0.25);
+        color: #FFFDF0;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # ==========================================
-# 1. GITHUB DATAHANTERING & INTEGRATION
+# 1. GITHUB DATAHANTERING
 # ==========================================
 def get_github_repo():
     token = st.secrets["GITHUB_TOKEN"]
@@ -43,7 +149,6 @@ def save_json_to_github(filename, data, sha, commit_message="Uppdatera data"):
         st.error(f"Kunde inte spara till GitHub: {e}")
         return False
 
-# Läs in data från GitHub (endast en gång per laddning)
 DATA_FILE = "courtyard_cards_history.json"
 WITHDRAWALS_FILE = "courtyard_withdrawals_history.json"
 
@@ -56,12 +161,9 @@ withdrawals, withdrawals_sha = load_json_from_github(WITHDRAWALS_FILE, [])
 def format_image_source(img_input):
     if not img_input:
         return ""
-    
     clean_path = str(img_input).strip().strip('"').strip("'")
-    
     if clean_path.startswith("http://") or clean_path.startswith("https://") or clean_path.startswith("data:image/"):
         return clean_path
-    
     if os.path.exists(clean_path) and os.path.isfile(clean_path):
         try:
             mime_type, _ = mimetypes.guess_type(clean_path)
@@ -72,14 +174,12 @@ def format_image_source(img_input):
             return f"data:{mime_type};base64,{encoded_string}"
         except Exception:
             return clean_path
-            
     return clean_path
 
 @st.cache_data(ttl=86400)
 def get_usd_sek_rate(fetch_date):
     if not fetch_date or pd.isna(fetch_date) or str(fetch_date).strip() in ["", "None", "Nat"]:
         return 10.50
-        
     if isinstance(fetch_date, (datetime, date)):
         date_str = fetch_date.strftime("%Y-%m-%d")
     else:
@@ -104,55 +204,55 @@ def get_usd_sek_rate(fetch_date):
     return 10.50
 
 # ==========================================
-# 3. APPTITEL & FLIKSTRUKTUR
+# 3. APPTITEL & FLIKAR
 # ==========================================
-st.title("🃏 Courtyard K4-Räknare")
-st.caption("Manuell och exakt spårning av dina kort och plånbok för Skatteverket.")
+st.title("⚡ Courtyard K4-Räknare ⚡")
+st.caption("Pikachu-powered spårning av dina Pokémon- och samlarkort för Skatteverket.")
 
-tab1, tab2, tab3 = st.tabs(["📊 Översikt & Skatteunderlag", "➕ Registrera Nytt Köp", "🏧 Registrera Uttag (Bank)"])
+tab1, tab2, tab3 = st.tabs(["📊 Översikt & Skatt", "➕ Registrera Nytt Köp", "🏧 Registrera Uttag"])
 
 shared_column_config = {
     "Bild": st.column_config.ImageColumn("Bild", width="small"),
     "Länk": st.column_config.LinkColumn("Länk", display_text="Öppna 🔗", width="small"),
-    "Name": st.column_config.TextColumn("Namn", width="medium"),
+    "Name": st.column_config.TextColumn("Kortnamn", width="medium"),
     "Buy_Date": st.column_config.DateColumn("Köpdatum", width="small"),
-    "Buy_USD": st.column_config.NumberColumn("Köp USD", format="$%.2f", width="small"),
+    "Buy_USD": st.column_config.NumberColumn("Köp ($)", format="$%.2f", width="small"),
     "Buy_Currency_Rate": st.column_config.NumberColumn("Köp Kurs", format="%.2f", width="small"),
-    "Buy_SEK": st.column_config.NumberColumn("Köp SEK", format="%.2f SEK", width="small"),
+    "Buy_SEK": st.column_config.NumberColumn("Köp (SEK)", format="%.2f kr", width="small"),
     "Sell_Date": st.column_config.DateColumn("Säljdatum", width="small"),
-    "Sell_USD": st.column_config.NumberColumn("Sälj USD", format="$%.2f", width="small"),
+    "Sell_USD": st.column_config.NumberColumn("Sälj ($)", format="$%.2f", width="small"),
     "Sell_Currency_Rate": st.column_config.NumberColumn("Sälj Kurs", format="%.2f", width="small"),
-    "Sell_SEK": st.column_config.NumberColumn("Sälj SEK", format="%.2f SEK", width="small"),
+    "Sell_SEK": st.column_config.NumberColumn("Sälj (SEK)", format="%.2f kr", width="small"),
     "Status": st.column_config.TextColumn("Status", width="small"),
 }
 
-# Lås kolumnordning så att man inte råkar dra runt dem med fingret på mobilen
 cols_order = ["Bild", "Länk", "Name", "Buy_Date", "Buy_USD", "Buy_Currency_Rate", "Buy_SEK", "Sell_Date", "Sell_USD", "Sell_Currency_Rate", "Sell_SEK", "Status"]
 
 # --- FLIK 2: REGISTRERA NYTT KÖP ---
 with tab2:
-    st.subheader("➕ Lägg till nytt kort/paket")
+    st.subheader("⚡ Lägg till nytt kort i samlingen")
     
     col_a, col_b = st.columns(2)
     with col_a:
-        b_name = st.text_input("Kort / Paket Namn", placeholder="t.ex. 2025 Pokémon Eevee EX")
+        b_name = st.text_input("Kort / Paket Namn", placeholder="t.ex. Pikachu Special Art Rare")
         b_date = st.date_input("Köpdatum", value=date.today())
         
         auto_rate = get_usd_sek_rate(b_date)
-        b_rate = st.number_input("USD/SEK Kurs (Automatisk från ECB)", value=auto_rate, step=0.01)
+        b_rate = st.number_input("USD/SEK Kurs (Hämtad från ECB)", value=auto_rate, step=0.01)
         b_usd = st.number_input("Inköpspris (USD)", min_value=0.0, step=1.0, value=50.0)
-        st.write(f"**Beräknat inköpspris i SEK:** `{round(b_usd * b_rate, 2)} SEK`")
+        
+        st.markdown(f"💳 **Beräknat inköpspris:** `{round(b_usd * b_rate, 2)} SEK`")
 
     with col_b:
         card_url = st.text_input("Sida på Courtyard (Valfritt)", placeholder="https://courtyard.io/card/...")
-        
-        st.write("**📷 Bild på kortet:**")
+        st.write("🖼️ **Bild på kortet:**")
         local_path = st.text_input(
-            "Klistra in bild-URL eller sökväg till bilden", 
+            "Klistra in bild-URL", 
             placeholder="https://... eller D:\\Mapp\\bild.png"
         )
 
-    if st.button("💾 Spara Köp", type="primary"):
+    st.write("")
+    if st.button("⚡ Spara Köp i Samlingen", type="primary", use_container_width=True):
         if b_name and b_usd > 0:
             img_data = format_image_source(local_path) if local_path else ""
 
@@ -172,7 +272,7 @@ with tab2:
             }
             cards.append(new_card)
             if save_json_to_github(DATA_FILE, cards, cards_sha, f"Lade till köp: {b_name}"):
-                st.success(f"Lade till {b_name}!")
+                st.success(f"⚡ Lade till {b_name}!")
                 st.rerun()
         else:
             st.error("Fyll i namn och inköpspris.")
@@ -180,7 +280,7 @@ with tab2:
 # --- FLIK 3: REGISTRERA UTTAG TILL BANK ---
 with tab3:
     st.subheader("🏧 Registrera Uttag till Bank")
-    st.caption("Registrera när du tar ut USD/USDC från Courtyard till ditt svenska bankkonto eller plånbok.")
+    st.caption("Fyll i när du tar ut köpta USD/USDC från Courtyard till ditt svenska bankkonto.")
     
     col_u1, col_u2 = st.columns(2)
     with col_u1:
@@ -189,7 +289,8 @@ with tab3:
     with col_u2:
         u_sek = st.number_input("Totalt erhållit belopp på banken (SEK)", min_value=0.0, step=100.0, value=500.0)
         
-    if st.button("💾 Spara Uttag", type="primary"):
+    st.write("")
+    if st.button("⚡ Spara Uttags-transaktion", type="primary", use_container_width=True):
         if u_usd > 0 and u_sek > 0:
             new_withdrawal = {
                 "Datum": str(u_date),
@@ -198,14 +299,14 @@ with tab3:
             }
             withdrawals.append(new_withdrawal)
             if save_json_to_github(WITHDRAWALS_FILE, withdrawals, withdrawals_sha, "Lade till uttag"):
-                st.success("Uttag registrerat!")
+                st.success("✅ Uttag registrerat!")
                 st.rerun()
         else:
             st.error("Ange ett giltigt USD-belopp och erhållit SEK-belopp.")
 
     if withdrawals:
         st.divider()
-        st.subheader("📜 Registrerade Uttag")
+        st.subheader("📜 Registrerade Bankuttag")
         df_w = pd.DataFrame(withdrawals)
         st.dataframe(df_w, use_container_width=True)
 
@@ -217,10 +318,10 @@ with tab1:
 
         col_head, col_btn = st.columns([4, 1])
         with col_head:
-            st.subheader("📜 Komplett Översikt")
+            st.subheader("📜 Samling & Innehav")
         with col_btn:
             if not st.session_state.edit_mode:
-                if st.button("✏️ Aktivera Redigering", use_container_width=True):
+                if st.button("✏️ Redigera Tabell", use_container_width=True):
                     st.session_state.edit_mode = True
                     st.rerun()
 
@@ -243,37 +344,37 @@ with tab1:
         df["Sell_Date"] = pd.to_datetime(df["Sell_Date"], errors="coerce").dt.date
 
         if st.session_state.edit_mode:
-            st.info("💡 **Redigeringsläge aktivt:** Ändra värden fritt. Tryck på **'💾 Spara alla ändringar'** längst ner när du är klar.")
+            st.info("💡 **Redigeringsläge:** Ändra värden fritt nedan. Tryck på **'⚡ Spara alla ändringar'** när du är klar.")
             
             with st.form("table_edit_form"):
                 editable_config = {
                     "Bild": st.column_config.TextColumn("Bild URL / Sökväg", width="medium"),
                     "Länk": st.column_config.TextColumn("Courtyard Länk", width="medium"),
-                    "Name": st.column_config.TextColumn("Namn", width="medium"),
+                    "Name": st.column_config.TextColumn("Kortnamn", width="medium"),
                     "Buy_Date": st.column_config.DateColumn("Köpdatum", width="small"),
-                    "Buy_USD": st.column_config.NumberColumn("Köp USD", format="$%.2f", width="small"),
+                    "Buy_USD": st.column_config.NumberColumn("Köp ($)", format="$%.2f", width="small"),
                     "Buy_Currency_Rate": st.column_config.NumberColumn("Köp Kurs", format="%.2f", width="small"),
-                    "Buy_SEK": st.column_config.NumberColumn("Köp SEK", format="%.2f SEK", width="small"),
+                    "Buy_SEK": st.column_config.NumberColumn("Köp (SEK)", format="%.2f kr", width="small"),
                     "Sell_Date": st.column_config.DateColumn("Säljdatum", width="small"),
-                    "Sell_USD": st.column_config.NumberColumn("Sälj USD", format="$%.2f", width="small"),
+                    "Sell_USD": st.column_config.NumberColumn("Sälj ($)", format="$%.2f", width="small"),
                     "Sell_Currency_Rate": st.column_config.NumberColumn("Sälj Kurs", format="%.2f", width="small"),
-                    "Sell_SEK": st.column_config.NumberColumn("Sälj SEK", format="%.2f SEK", width="small"),
+                    "Sell_SEK": st.column_config.NumberColumn("Sälj (SEK)", format="%.2f kr", width="small"),
                     "Status": st.column_config.TextColumn("Status", width="small"),
                 }
 
                 edited_df = st.data_editor(
                     df,
                     column_config=editable_config,
-                    column_order=cols_order,  # Låser ordningen på kolumnerna
+                    column_order=cols_order,
                     num_rows="dynamic",
                     use_container_width=True,
                     key="table_editor_form"
                 )
 
-                submit_save = st.form_submit_button("💾 Spara alla ändringar", type="primary", use_container_width=True)
+                submit_save = st.form_submit_button("⚡ Spara alla ändringar", type="primary", use_container_width=True)
 
             if submit_save:
-                with st.spinner("Beräknar om valutakurser och sparar till GitHub..."):
+                with st.spinner("Oppdaterar valutakurser och sparar till GitHub..."):
                     updated_data = edited_df.to_dict(orient="records")
                     for c in updated_data:
                         try:
@@ -319,12 +420,10 @@ with tab1:
                 st.rerun()
 
         else:
-            st.caption("Klicka på 🗑️ till vänster för att radera en rad direkt, eller '✏️ Aktivera Redigering' ovan för att ändra.")
-            
             for idx, row in df.iterrows():
                 col_del, col_data = st.columns([0.3, 9.7])
                 with col_del:
-                    if st.button("🗑️", key=f"del_{idx}", help="Radera denna rad"):
+                    if st.button("🗑️", key=f"del_{idx}", help="Radera rad"):
                         cards.pop(idx)
                         if save_json_to_github(DATA_FILE, cards, cards_sha, f"Tog bort rad {idx}"):
                             st.rerun()
@@ -333,12 +432,12 @@ with tab1:
                     st.dataframe(
                         row_df,
                         column_config=shared_column_config,
-                        column_order=cols_order,  # Låser ordningen på kolumnerna
+                        column_order=cols_order,
                         hide_index=True,
                         use_container_width=True
                     )
 
-        # --- A. KORT-SKATTEBERÄKNING (K4 AVSNITT D) ---
+        # --- A. KORT-SKATTEBERÄKNING ---
         total_gains_sek = 0.0
         total_losses_sek = 0.0
         total_sell_sek = 0.0
@@ -379,13 +478,13 @@ with tab1:
         card_tax = net_taxable_base * 0.30
 
         st.divider()
-        st.subheader("📋 Underlag för Skatteverket (Bilaga K4 - Avsnitt D: Kort)")
+        st.markdown("### 🏷️ Skatt på Kortförsäljning (Bilaga K4 - Avsnitt D)")
 
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Totalt Vinster (Kort)", f"{total_gains_sek:.2f} SEK")
-        c2.metric("Totalt Förluster (Kort)", f"{total_losses_sek:.2f} SEK")
-        c3.metric("Avdragsgill förlust (70%)", f"{deductible_loss:.2f} SEK")
-        c4.metric("Kortskatt att betala (30%)", f"{card_tax:.2f} SEK")
+        c1.metric("Totalt Vinster", f"{total_gains_sek:,.2f} kr")
+        c2.metric("Totalt Förluster", f"{total_losses_sek:,.2f} kr")
+        c3.metric("Avdragsgill förlust (70%)", f"{deductible_loss:,.2f} kr")
+        c4.metric("Kortskatt (30%)", f"{card_tax:,.2f} kr")
 
         # --- B. GNS-PLÅNBOK & VALUTASKATT ---
         wallet_events = []
@@ -470,25 +569,31 @@ with tab1:
         brutto_resultat = (total_gains_sek - total_losses_sek) + (valuta_vinster_sek - valuta_forluster_sek)
         netto_vinst = brutto_resultat - total_skatt
 
+        # --- C. TOTAL EKONOMI-KORT (PIKACHU STYLING) ---
         st.divider()
-        st.subheader("💰 Total Ekonomi & Ren Nettovinst")
+        
+        st.markdown(f"""
+        <div class="pikachu-card">
+            <h2 style="margin:0; font-size:1.6rem; color:#FFDE00;">⚡ REN NETTOVINST: {netto_vinst:,.2f} SEK</h2>
+            <p style="margin:6px 0 0 0; opacity:0.9;">Ditt faktiska resultat i fickan efter att all skatt på kort och valutakursförändringar är beräknad.</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-        n1, n2, n3, n4 = st.columns(4)
-        n1.metric("Netto Kortresultat", f"{(total_gains_sek - total_losses_sek):.2f} SEK")
-        n2.metric("Netto Valutaresultat", f"{(valuta_vinster_sek - valuta_forluster_sek):.2f} SEK")
-        n3.metric("Total Beräknad Skatt", f"-{total_skatt:.2f} SEK", delta_color="inverse")
-        n4.metric("💰 REN NETTOVINST", f"{netto_vinst:.2f} SEK")
+        n1, n2, n3 = st.columns(3)
+        n1.metric("Netto Kortresultat", f"{(total_gains_sek - total_losses_sek):,.2f} kr")
+        n2.metric("Netto Valutaresultat", f"{(valuta_vinster_sek - valuta_forluster_sek):,.2f} kr")
+        n3.metric("Total Beräknad Skatt", f"-{total_skatt:,.2f} kr", delta_color="inverse")
 
         st.write("")
         p1, p2, p3 = st.columns(3)
-        p1.metric("USD kvar på kontot", f"${usd_saldo:,.2f}")
-        p2.metric("Inneliggande SEK-Omkostnad", f"{sek_omkostnad:,.2f} SEK")
-        p3.metric("Aktiv Snittkurs (GNS)", f"{nuvarande_snittkurs:.4f} SEK/USD")
+        p1.metric("USD kvar i Courtyard Wallet", f"${usd_saldo:,.2f}")
+        p2.metric("Inneliggande SEK-Omkostnad", f"{sek_omkostnad:,.2f} kr")
+        p3.metric("Aktiv Snittkurs (GNS)", f"{nuvarande_snittkurs:.4f} kr/$")
 
-        # --- C. EXPORT & SKATTEVERKET FÄRDIG KOPIA ---
+        # --- D. DEKLARATIONSHJÄLP ---
         st.divider()
-        st.subheader("📄 Snabbkopia för Skatteverket (Inkomstdeklaration 1 & K4)")
-        st.caption("Alla belopp nedan är avrundade till hela kronor enligt Skatteverkets regler.")
+        st.subheader("📋 Siffror för Inkomstdeklarationen")
+        st.caption("Färdigavrundade belopp att fylla i hos Skatteverket:")
 
         m_k4_vinst_kort = round(total_gains_sek)
         m_k4_forlust_kort = round(total_losses_sek)
@@ -501,18 +606,18 @@ with tab1:
         s3.metric("Punkt 7.2 (Valutavinst)", f"{m_k4_vinst_valuta} kr")
         s4.metric("Punkt 8.1 (Valutaförlust)", f"{m_k4_forlust_valuta} kr")
 
-        with st.expander("📋 Visa exakt radutskrift för K4-blanketten"):
+        with st.expander("📄 Visa exakta rader för K4-blanketten"):
             st.markdown("#### **Avsnitt D – Övriga tillgångar (Kort)**")
             if k4_card_export_rows:
                 st.dataframe(pd.DataFrame(k4_card_export_rows), use_container_width=True)
             else:
-                st.caption("Inga sålda kort ännu.")
+                st.caption("Inga sålda kort registrerade ännu.")
 
             st.markdown("#### **Avsnitt C – Valuta (Uttag till bank)**")
             if k4_valuta_export_rows:
                 st.dataframe(pd.DataFrame(k4_valuta_export_rows), use_container_width=True)
             else:
-                st.caption("Inga bankuttag gjorda ännu.")
+                st.caption("Inga bankuttag registrerade ännu.")
 
     else:
         st.info("Inga kort registrerade ännu. Gå till fliken 'Registrera Nytt Köp' för att börja!")
