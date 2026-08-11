@@ -5,12 +5,12 @@
         "Name": "test",
         "Buy_Date": "2026-08-11",
         "Buy_USD": 50.0,
-        "Buy_Currency_Rate": 10.5,
-        "Buy_SEK": 525.0,
+        "Buy_Currency_Rate": 9.5004,
+        "Buy_SEK": 475.02,
         "Sell_Date": "",
         "Sell_USD": null,
         "Sell_Currency_Rate": null,
         "Sell_SEK": null,
-        "Status": "Ägd"
+        "Status": "Äger kvar"
     }
 ]
