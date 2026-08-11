@@ -18,7 +18,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Injektera anpassad CSS med Pokémon-font och sprites-banner
+# Injektera anpassad CSS med Pokémon-font, sprites-banner och högkontrast-text
 st.markdown("""
 <style>
     @import url('https://fonts.cdnfonts.com/css/pokemon-solid');
@@ -56,7 +56,7 @@ st.markdown("""
         display: flex;
         align-items: center;
         gap: 12px;
-        background: rgba(26, 29, 36, 0.6);
+        background: rgba(26, 29, 36, 0.8);
         padding: 8px 16px;
         border-radius: 16px;
         border: 1px solid #3A3D45;
@@ -79,7 +79,7 @@ st.markdown("""
         font-family: 'Trebuchet MS', sans-serif;
     }
 
-    /* Metric-boxar med elektrisk glöd vid hover */
+    /* Metric-boxar med extra tydlig och lysande text */
     div[data-testid="stMetric"] {
         background-color: #1A1D24;
         border: 1px solid #3A3D45;
@@ -93,17 +93,31 @@ st.markdown("""
         box-shadow: 0 0 12px rgba(255, 222, 0, 0.35);
         transform: translateY(-2px);
     }
-    div[data-testid="stMetricLabel"] {
-        font-size: 0.85rem !important;
-        color: #A0AEC0 !important;
-        font-weight: 600;
+    
+    /* Metric Rubriker (Texten som tidigare var svår att se) */
+    div[data-testid="stMetricLabel"],
+    div[data-testid="stMetricLabel"] *,
+    label[data-testid="stMetricLabel"] {
+        font-size: 0.88rem !important;
+        color: #FFDE00 !important; /* Ljusgul färg med hög kontrast */
+        font-weight: 700 !important;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.6px;
     }
-    div[data-testid="stMetricValue"] {
-        font-size: 1.5rem !important;
-        font-weight: 700;
+    
+    /* Metric Värden */
+    div[data-testid="stMetricValue"],
+    div[data-testid="stMetricValue"] * {
+        font-size: 1.6rem !important;
+        font-weight: 800 !important;
         color: #FFFFFF !important;
+    }
+
+    /* Förbättrad kontrast för alla bildtexter (st.caption) */
+    div[data-testid="stCaptionContainer"],
+    .stCaption {
+        color: #E2E8F0 !important;
+        font-size: 0.95rem !important;
     }
 
     /* Flikar med Pikachu-gul markering */
@@ -118,7 +132,7 @@ st.markdown("""
         height: 45px;
         white-space: pre-wrap;
         border-radius: 8px;
-        color: #A0AEC0;
+        color: #CBD5E1 !important;
         font-weight: 600;
         padding: 0px 16px;
     }
@@ -436,7 +450,7 @@ with tab1:
                 submit_save = st.form_submit_button("⚡ Spara alla ändringar", type="primary", use_container_width=True)
 
             if submit_save:
-                with st.spinner("Oppdaterar valutakurser och sparar till GitHub..."):
+                with st.spinner("Uppdaterar valutakurser och sparar till GitHub..."):
                     updated_data = edited_df.to_dict(orient="records")
                     for c in updated_data:
                         try:
@@ -637,7 +651,7 @@ with tab1:
         st.markdown(f"""
         <div class="pikachu-card">
             <h2 style="margin:0; font-size:1.6rem; color:#FFDE00;">⚡ REN NETTOVINST: {netto_vinst:,.2f} SEK</h2>
-            <p style="margin:6px 0 0 0; opacity:0.9;">Ditt faktiska resultat i fickan efter att all skatt på kort och valutakursförändringar är beräknad.</p>
+            <p style="margin:6px 0 0 0; color:#E2E8F0;">Ditt faktiska resultat i fickan efter att all skatt på kort och valutakursförändringar är beräknad.</p>
         </div>
         """, unsafe_allow_html=True)
 
