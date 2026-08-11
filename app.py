@@ -18,17 +18,14 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Injektera anpassad CSS med Pokémon-font, sprites-banner och högkontrast-text
 st.markdown("""
 <style>
     @import url('https://fonts.cdnfonts.com/css/pokemon-solid');
 
-    /* Grundläggande mörk bakgrund */
     .main {
         background-color: #0E1117;
     }
 
-    /* Pokémon Logo Font Styling (Röd Ruta) */
     .pokemon-font {
         font-family: 'Pokemon Solid', sans-serif;
         color: #FFDE00 !important;
@@ -40,7 +37,6 @@ st.markdown("""
         text-shadow: 3px 3px 0px #1D2C5E;
     }
 
-    /* Bannerlayout för Header & Sprites (Grön Ruta) */
     .pokemon-banner {
         display: flex;
         justify-content: space-between;
@@ -73,13 +69,11 @@ st.markdown("""
         transform: scale(1.25) translateY(-5px);
     }
     
-    /* Pikachu-gul Accentfärg på Underrubriker */
     h1, h2, h3 {
         color: #FFDE00 !important;
         font-family: 'Trebuchet MS', sans-serif;
     }
 
-    /* Metric-boxar med extra tydlig och lysande text */
     div[data-testid="stMetric"] {
         background-color: #1A1D24;
         border: 1px solid #3A3D45;
@@ -94,18 +88,16 @@ st.markdown("""
         transform: translateY(-2px);
     }
     
-    /* Metric Rubriker (Texten som tidigare var svår att se) */
     div[data-testid="stMetricLabel"],
     div[data-testid="stMetricLabel"] *,
     label[data-testid="stMetricLabel"] {
         font-size: 0.88rem !important;
-        color: #FFDE00 !important; /* Ljusgul färg med hög kontrast */
+        color: #FFDE00 !important;
         font-weight: 700 !important;
         text-transform: uppercase;
         letter-spacing: 0.6px;
     }
     
-    /* Metric Värden */
     div[data-testid="stMetricValue"],
     div[data-testid="stMetricValue"] * {
         font-size: 1.6rem !important;
@@ -113,14 +105,12 @@ st.markdown("""
         color: #FFFFFF !important;
     }
 
-    /* Förbättrad kontrast för alla bildtexter (st.caption) */
     div[data-testid="stCaptionContainer"],
     .stCaption {
         color: #E2E8F0 !important;
         font-size: 0.95rem !important;
     }
 
-    /* Flikar med Pikachu-gul markering */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background-color: #14171F;
@@ -143,7 +133,6 @@ st.markdown("""
         box-shadow: 0 0 10px rgba(255, 222, 0, 0.4);
     }
 
-    /* Elektriska Knappar (Primary) */
     div.stButton > button[kind="primary"] {
         background: linear-gradient(135deg, #FFDE00 0%, #E6B800 100%) !important;
         color: #000000 !important;
@@ -158,13 +147,11 @@ st.markdown("""
         transform: scale(1.01);
     }
 
-    /* Elektrisk Avdelare */
     hr {
         margin: 2rem 0 !important;
         border-color: #3A3D45 !important;
     }
 
-    /* Pikachu Highlight-kort för Nettovinst */
     .pikachu-card {
         background: linear-gradient(135deg, #2A2400 0%, #1A1700 100%);
         padding: 22px;
@@ -565,6 +552,20 @@ with tab1:
         # --- B. GNS-PLÅNBOK & VALUTASKATT ---
         wallet_events = []
         for c in cards:
+            # Köp av kort räknas som UTFLÖDE från plånboken
+            if c.get("Buy_USD") and float(c.get("Buy_USD") or 0) > 0:
+                try:
+                    wallet_events.append({
+                        "Datum": str(c["Buy_Date"]),
+                        "Typ": "UTFLÖDE",
+                        "Beskrivning": f"Köp: {c.get('Name', 'Kort')}",
+                        "USD": float(c["Buy_USD"]),
+                        "SEK": float(c.get("Buy_SEK", 0) or 0)
+                    })
+                except Exception:
+                    pass
+
+            # Försäljning av kort räknas som INFLÖDE till plånboken
             if c.get("Status") == "Såld" and c.get("Sell_Date") and c.get("Sell_USD"):
                 try:
                     wallet_events.append({
@@ -610,19 +611,23 @@ with tab1:
                 if usd_saldo > 0:
                     snittkurs = sek_omkostnad / usd_saldo
                     omkostnad_uttag = ev["USD"] * snittkurs
-                    diff_valuta = ev["SEK"] - omkostnad_uttag
                     
-                    total_valuta_usd += ev["USD"]
-                    total_valuta_sell_sek += ev["SEK"]
-                    total_valuta_omkostnad_sek += omkostnad_uttag
+                    # Beräkna valutavinst/förlust endast vid uttag till bank
+                    if "Uttag till bank" in ev["Beskrivning"]:
+                        diff_valuta = ev["SEK"] - omkostnad_uttag
+                        total_valuta_usd += ev["USD"]
+                        total_valuta_sell_sek += ev["SEK"]
+                        total_valuta_omkostnad_sek += omkostnad_uttag
 
-                    if diff_valuta >= 0:
-                        valuta_vinster_sek += diff_valuta
-                    else:
-                        valuta_forluster_sek += abs(diff_valuta)
+                        if diff_valuta >= 0:
+                            valuta_vinster_sek += diff_valuta
+                        else:
+                            valuta_forluster_sek += abs(diff_valuta)
 
                     usd_saldo -= ev["USD"]
                     sek_omkostnad -= omkostnad_uttag
+                else:
+                    usd_saldo -= ev["USD"]
 
         k4_valuta_export_rows = []
         if total_valuta_usd > 0:
