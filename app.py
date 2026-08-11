@@ -109,7 +109,7 @@ def get_usd_sek_rate(fetch_date):
 st.title("🃏 Courtyard K4-Räknare")
 st.caption("Manuell och exakt spårning av dina kort och plånbok för Skatteverket.")
 
-tab1, tab2, tab3 = st.tabs(["📊 Översikt & Skatteunderlag", "➕ Registrera Nytt Köp", "ATM Registrera Uttag (Bank)"])
+tab1, tab2, tab3 = st.tabs(["📊 Översikt & Skatteunderlag", "➕ Registrera Nytt Köp", "🏧 Registrera Uttag (Bank)"])
 
 shared_column_config = {
     "Bild": st.column_config.ImageColumn("Bild", width="small"),
@@ -125,6 +125,9 @@ shared_column_config = {
     "Sell_SEK": st.column_config.NumberColumn("Sälj SEK", format="%.2f SEK", width="small"),
     "Status": st.column_config.TextColumn("Status", width="small"),
 }
+
+# Lås kolumnordning så att man inte råkar dra runt dem med fingret på mobilen
+cols_order = ["Bild", "Länk", "Name", "Buy_Date", "Buy_USD", "Buy_Currency_Rate", "Buy_SEK", "Sell_Date", "Sell_USD", "Sell_Currency_Rate", "Sell_SEK", "Status"]
 
 # --- FLIK 2: REGISTRERA NYTT KÖP ---
 with tab2:
@@ -230,7 +233,6 @@ with tab1:
 
         df = pd.DataFrame(cleaned_cards)
 
-        cols_order = ["Bild", "Länk", "Name", "Buy_Date", "Buy_USD", "Buy_Currency_Rate", "Buy_SEK", "Sell_Date", "Sell_USD", "Sell_Currency_Rate", "Sell_SEK", "Status"]
         for c in cols_order:
             if c not in df.columns:
                 df[c] = None
@@ -241,9 +243,8 @@ with tab1:
         df["Sell_Date"] = pd.to_datetime(df["Sell_Date"], errors="coerce").dt.date
 
         if st.session_state.edit_mode:
-            st.info("💡 **Redigeringsläge aktivt:** Gör alla dina ändringar i tabellen snabbt. Inget laddas eller laggar. Tryck på **'💾 Spara ändringar'** nedanför när du är helt klar!")
+            st.info("💡 **Redigeringsläge aktivt:** Ändra värden fritt. Tryck på **'💾 Spara alla ändringar'** längst ner när du är klar.")
             
-            # Formulerad data editor – förhindrar auto-reload per cell
             with st.form("table_edit_form"):
                 editable_config = {
                     "Bild": st.column_config.TextColumn("Bild URL / Sökväg", width="medium"),
@@ -263,6 +264,7 @@ with tab1:
                 edited_df = st.data_editor(
                     df,
                     column_config=editable_config,
+                    column_order=cols_order,  # Låser ordningen på kolumnerna
                     num_rows="dynamic",
                     use_container_width=True,
                     key="table_editor_form"
@@ -275,11 +277,9 @@ with tab1:
                     updated_data = edited_df.to_dict(orient="records")
                     for c in updated_data:
                         try:
-                            # Omvandla Bild till rätt format
                             if c.get("Bild"):
                                 c["Bild"] = format_image_source(c["Bild"])
 
-                            # Köpdatum & Kurs
                             if pd.notna(c.get("Buy_Date")) and c.get("Buy_Date"):
                                 c["Buy_Date"] = str(c["Buy_Date"])
                                 c["Buy_Currency_Rate"] = get_usd_sek_rate(c["Buy_Date"])
@@ -289,7 +289,6 @@ with tab1:
                             if c.get("Buy_USD") is not None and c.get("Buy_Currency_Rate"):
                                 c["Buy_SEK"] = round(float(c["Buy_USD"]) * float(c["Buy_Currency_Rate"]), 2)
                             
-                            # Säljdatum & Kurs
                             if c.get("Sell_USD") is not None and str(c.get("Sell_USD")).strip() not in ["", "None"] and float(c.get("Sell_USD") or 0) > 0:
                                 if pd.notna(c.get("Sell_Date")) and c.get("Sell_Date"):
                                     c["Sell_Date"] = str(c["Sell_Date"])
@@ -320,7 +319,7 @@ with tab1:
                 st.rerun()
 
         else:
-            st.caption("Klicka på 🗑️ till vänster för att radera en rad direkt, eller klicka på '✏️ Aktivera Redigering' ovan för att ändra text/länkar/priser.")
+            st.caption("Klicka på 🗑️ till vänster för att radera en rad direkt, eller '✏️ Aktivera Redigering' ovan för att ändra.")
             
             for idx, row in df.iterrows():
                 col_del, col_data = st.columns([0.3, 9.7])
@@ -334,6 +333,7 @@ with tab1:
                     st.dataframe(
                         row_df,
                         column_config=shared_column_config,
+                        column_order=cols_order,  # Låser ordningen på kolumnerna
                         hide_index=True,
                         use_container_width=True
                     )
