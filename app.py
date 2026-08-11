@@ -9,7 +9,6 @@ st.set_page_config(
 )
 
 # --- GITHUB INTEGRATION ---
-@st.cache_resource
 def get_github_repo():
     token = st.secrets["GITHUB_TOKEN"]
     repo_name = st.secrets["GITHUB_REPO"]
@@ -23,7 +22,7 @@ def load_json_from_github(filename, default_value):
         file_content = repo.get_contents(filename)
         data = json.loads(file_content.decoded_content.decode("utf-8"))
         return data, file_content.sha
-    except Exception:
+    except Exception as e:
         return default_value, None
 
 
@@ -32,16 +31,17 @@ def save_json_to_github(filename, data, sha, commit_message="Uppdatera data"):
         repo = get_github_repo()
         json_str = json.dumps(data, indent=4, ensure_ascii=False)
         if sha:
-            repo.update_file(
-                filename, commit_message, json_str, sha, branch="main"
-            )
+            repo.update_file(filename, commit_message, json_str, sha)
         else:
-            repo.create_file(
-                filename, commit_message, json_str, branch="main"
-            )
+            repo.create_file(filename, commit_message, json_str)
+        
         st.toast("✅ Sparat till GitHub!", icon="🎉")
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        return True
     except Exception as e:
         st.error(f"Kunde inte spara till GitHub: {e}")
+        return False
 
 
 # --- HÄMTA VALUTAKURS ---
@@ -98,29 +98,34 @@ if menu == "Registrera Köp":
         )
 
         submitted = st.form_submit_button("💾 Spara Köp")
-        if submitted and name:
-            new_card = {
-                "Bild": img_url,
-                "Länk": buy_link,
-                "Name": name,
-                "Buy_Date": str(buy_date),
-                "Buy_USD": buy_usd,
-                "Buy_Currency_Rate": rate,
-                "Buy_SEK": buy_sek,
-                "Sell_Date": "",
-                "Sell_USD": None,
-                "Sell_Currency_Rate": None,
-                "Sell_SEK": None,
-                "Status": "Ägd",
-            }
-            cards_data.append(new_card)
-            save_json_to_github(
-                "courtyard_cards_history.json",
-                cards_data,
-                cards_sha,
-                f"Lade till köp: {name}",
-            )
-            st.rerun()
+        if submitted:
+            if not name:
+                st.error("Du måste fylla i ett kortnamn!")
+            else:
+                new_card = {
+                    "Bild": img_url,
+                    "Länk": buy_link,
+                    "Name": name,
+                    "Buy_Date": str(buy_date),
+                    "Buy_USD": buy_usd,
+                    "Buy_Currency_Rate": rate,
+                    "Buy_SEK": buy_sek,
+                    "Sell_Date": "",
+                    "Sell_USD": None,
+                    "Sell_Currency_Rate": None,
+                    "Sell_SEK": None,
+                    "Status": "Ägd",
+                }
+                cards_data.append(new_card)
+                success = save_json_to_github(
+                    "courtyard_cards_history.json",
+                    cards_data,
+                    cards_sha,
+                    f"Lade till köp: {name}",
+                )
+                if success:
+                    st.success(f"Kortet '{name}' har sparats!")
+                    st.rerun()
 
 # --- 2. REGISTRERA FÖRSÄLJNING ---
 elif menu == "Registrera Försäljning":
@@ -151,7 +156,6 @@ elif menu == "Registrera Försäljning":
 
             submitted = st.form_submit_button("💰 Spara Försäljning")
             if submitted:
-                # Uppdatera kortet i huvudlistan
                 for c in cards_data:
                     if (
                         c["Name"] == selected_card["Name"]
@@ -165,13 +169,15 @@ elif menu == "Registrera Försäljning":
                         c["Status"] = "Såld"
                         break
 
-                save_json_to_github(
+                success = save_json_to_github(
                     "courtyard_cards_history.json",
                     cards_data,
                     cards_sha,
                     f"Sålde kort: {selected_card['Name']}",
                 )
-                st.rerun()
+                if success:
+                    st.success(f"Försäljningen av '{selected_card['Name']}' har sparats!")
+                    st.rerun()
 
 # --- 3. REGISTRERA UTTAG ---
 elif menu == "Registrera Uttag":
@@ -194,13 +200,15 @@ elif menu == "Registrera Uttag":
                 "SEK": w_sek,
             }
             withdrawals_data.append(new_w)
-            save_json_to_github(
+            success = save_json_to_github(
                 "courtyard_withdrawals_history.json",
                 withdrawals_data,
                 withdrawals_sha,
                 "Lade till uttag",
             )
-            st.rerun()
+            if success:
+                st.success("Uttaget har sparats!")
+                st.rerun()
 
     if withdrawals_data:
         st.subheader("Registrerade Uttag")
