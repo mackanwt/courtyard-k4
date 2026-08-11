@@ -43,7 +43,7 @@ def save_json_to_github(filename, data, sha, commit_message="Uppdatera data"):
         st.error(f"Kunde inte spara till GitHub: {e}")
         return False
 
-# Läs in data från GitHub
+# Läs in data från GitHub (endast en gång per laddning)
 DATA_FILE = "courtyard_cards_history.json"
 WITHDRAWALS_FILE = "courtyard_withdrawals_history.json"
 
@@ -71,13 +71,13 @@ def format_image_source(img_input):
                 encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
             return f"data:{mime_type};base64,{encoded_string}"
         except Exception:
-            return ""
+            return clean_path
             
-    return ""
+    return clean_path
 
 @st.cache_data(ttl=86400)
 def get_usd_sek_rate(fetch_date):
-    if not fetch_date or pd.isna(fetch_date):
+    if not fetch_date or pd.isna(fetch_date) or str(fetch_date).strip() in ["", "None", "Nat"]:
         return 10.50
         
     if isinstance(fetch_date, (datetime, date)):
@@ -109,7 +109,7 @@ def get_usd_sek_rate(fetch_date):
 st.title("🃏 Courtyard K4-Räknare")
 st.caption("Manuell och exakt spårning av dina kort och plånbok för Skatteverket.")
 
-tab1, tab2, tab3 = st.tabs(["📊 Översikt & Skatteunderlag", "➕ Registrera Nytt Köp", "🏧 Registrera Uttag (Bank)"])
+tab1, tab2, tab3 = st.tabs(["📊 Översikt & Skatteunderlag", "➕ Registrera Nytt Köp", "ATM Registrera Uttag (Bank)"])
 
 shared_column_config = {
     "Bild": st.column_config.ImageColumn("Bild", width="small"),
@@ -145,19 +145,13 @@ with tab2:
         
         st.write("**📷 Bild på kortet:**")
         local_path = st.text_input(
-            "Klistra in sökvägen till bilden på datorn (Ctrl+V)", 
-            placeholder=r"D:\Users\marcu\Desktop\Skärmbild 2026-08-09 215606.png"
+            "Klistra in bild-URL eller sökväg till bilden", 
+            placeholder="https://... eller D:\\Mapp\\bild.png"
         )
-        image_url = st.text_input("Eller klistra in en Bild-URL (valfritt)", placeholder="https://...")
 
     if st.button("💾 Spara Köp", type="primary"):
         if b_name and b_usd > 0:
-            img_data = ""
-            
-            if local_path:
-                img_data = format_image_source(local_path)
-            elif image_url:
-                img_data = image_url
+            img_data = format_image_source(local_path) if local_path else ""
 
             new_card = {
                 "Bild": img_data,
@@ -222,11 +216,7 @@ with tab1:
         with col_head:
             st.subheader("📜 Komplett Översikt")
         with col_btn:
-            if st.session_state.edit_mode:
-                if st.button("💾 Spara & Lås tabell", type="primary", use_container_width=True):
-                    st.session_state.edit_mode = False
-                    st.rerun()
-            else:
+            if not st.session_state.edit_mode:
                 if st.button("✏️ Aktivera Redigering", use_container_width=True):
                     st.session_state.edit_mode = True
                     st.rerun()
@@ -234,7 +224,7 @@ with tab1:
         cleaned_cards = []
         for c in cards:
             c_copy = c.copy()
-            if c_copy.get("Bild") and not str(c_copy["Bild"]).startswith("data:") and not str(c_copy["Bild"]).startswith("http"):
+            if c_copy.get("Bild"):
                 c_copy["Bild"] = format_image_source(c_copy["Bild"])
             cleaned_cards.append(c_copy)
 
@@ -251,51 +241,86 @@ with tab1:
         df["Sell_Date"] = pd.to_datetime(df["Sell_Date"], errors="coerce").dt.date
 
         if st.session_state.edit_mode:
-            st.info("💡 **Redigeringsläge aktivt:** Ändra datum eller priser. Valutakurser och SEK-belopp räknas om automatiskt när du sparar!")
+            st.info("💡 **Redigeringsläge aktivt:** Gör alla dina ändringar i tabellen snabbt. Inget laddas eller laggar. Tryck på **'💾 Spara ändringar'** nedanför när du är helt klar!")
             
-            edited_df = st.data_editor(
-                df,
-                column_config=shared_column_config,
-                num_rows="dynamic",
-                use_container_width=True,
-                key="table_editor"
-            )
+            # Formulerad data editor – förhindrar auto-reload per cell
+            with st.form("table_edit_form"):
+                editable_config = {
+                    "Bild": st.column_config.TextColumn("Bild URL / Sökväg", width="medium"),
+                    "Länk": st.column_config.TextColumn("Courtyard Länk", width="medium"),
+                    "Name": st.column_config.TextColumn("Namn", width="medium"),
+                    "Buy_Date": st.column_config.DateColumn("Köpdatum", width="small"),
+                    "Buy_USD": st.column_config.NumberColumn("Köp USD", format="$%.2f", width="small"),
+                    "Buy_Currency_Rate": st.column_config.NumberColumn("Köp Kurs", format="%.2f", width="small"),
+                    "Buy_SEK": st.column_config.NumberColumn("Köp SEK", format="%.2f SEK", width="small"),
+                    "Sell_Date": st.column_config.DateColumn("Säljdatum", width="small"),
+                    "Sell_USD": st.column_config.NumberColumn("Sälj USD", format="$%.2f", width="small"),
+                    "Sell_Currency_Rate": st.column_config.NumberColumn("Sälj Kurs", format="%.2f", width="small"),
+                    "Sell_SEK": st.column_config.NumberColumn("Sälj SEK", format="%.2f SEK", width="small"),
+                    "Status": st.column_config.TextColumn("Status", width="small"),
+                }
 
-            updated_data = edited_df.to_dict(orient="records")
-            for c in updated_data:
-                try:
-                    if pd.notna(c.get("Buy_Date")) and c.get("Buy_Date"):
-                        c["Buy_Date"] = str(c["Buy_Date"])
-                        c["Buy_Currency_Rate"] = get_usd_sek_rate(c["Buy_Date"])
-                    else:
-                        c["Buy_Date"] = ""
+                edited_df = st.data_editor(
+                    df,
+                    column_config=editable_config,
+                    num_rows="dynamic",
+                    use_container_width=True,
+                    key="table_editor_form"
+                )
 
-                    if c.get("Buy_USD") and c.get("Buy_Currency_Rate"):
-                        c["Buy_SEK"] = round(float(c["Buy_USD"]) * float(c["Buy_Currency_Rate"]), 2)
-                    
-                    if c.get("Sell_USD") is not None and str(c.get("Sell_USD")).strip() != "" and float(c.get("Sell_USD") or 0) > 0:
-                        if pd.notna(c.get("Sell_Date")) and c.get("Sell_Date"):
-                            c["Sell_Date"] = str(c["Sell_Date"])
-                            c["Sell_Currency_Rate"] = get_usd_sek_rate(c["Sell_Date"])
-                        else:
-                            c["Sell_Date"] = ""
-                            c["Sell_Currency_Rate"] = c.get("Sell_Currency_Rate") or 10.50
+                submit_save = st.form_submit_button("💾 Spara alla ändringar", type="primary", use_container_width=True)
+
+            if submit_save:
+                with st.spinner("Beräknar om valutakurser och sparar till GitHub..."):
+                    updated_data = edited_df.to_dict(orient="records")
+                    for c in updated_data:
+                        try:
+                            # Omvandla Bild till rätt format
+                            if c.get("Bild"):
+                                c["Bild"] = format_image_source(c["Bild"])
+
+                            # Köpdatum & Kurs
+                            if pd.notna(c.get("Buy_Date")) and c.get("Buy_Date"):
+                                c["Buy_Date"] = str(c["Buy_Date"])
+                                c["Buy_Currency_Rate"] = get_usd_sek_rate(c["Buy_Date"])
+                            else:
+                                c["Buy_Date"] = ""
+
+                            if c.get("Buy_USD") is not None and c.get("Buy_Currency_Rate"):
+                                c["Buy_SEK"] = round(float(c["Buy_USD"]) * float(c["Buy_Currency_Rate"]), 2)
                             
-                        rate = float(c["Sell_Currency_Rate"])
-                        c["Sell_SEK"] = round(float(c["Sell_USD"]) * rate, 2)
-                        c["Status"] = "Såld"
-                    else:
-                        c["Sell_Date"] = ""
-                        c["Sell_USD"] = None
-                        c["Sell_Currency_Rate"] = None
-                        c["Sell_SEK"] = None
-                        c["Status"] = "Äger kvar"
-                except Exception:
-                    pass
+                            # Säljdatum & Kurs
+                            if c.get("Sell_USD") is not None and str(c.get("Sell_USD")).strip() not in ["", "None"] and float(c.get("Sell_USD") or 0) > 0:
+                                if pd.notna(c.get("Sell_Date")) and c.get("Sell_Date"):
+                                    c["Sell_Date"] = str(c["Sell_Date"])
+                                    c["Sell_Currency_Rate"] = get_usd_sek_rate(c["Sell_Date"])
+                                else:
+                                    c["Sell_Date"] = ""
+                                    c["Sell_Currency_Rate"] = c.get("Sell_Currency_Rate") or 10.50
+                                    
+                                rate = float(c["Sell_Currency_Rate"])
+                                c["Sell_SEK"] = round(float(c["Sell_USD"]) * rate, 2)
+                                c["Status"] = "Såld"
+                            else:
+                                c["Sell_Date"] = ""
+                                c["Sell_USD"] = None
+                                c["Sell_Currency_Rate"] = None
+                                c["Sell_SEK"] = None
+                                c["Status"] = "Äger kvar"
+                        except Exception:
+                            pass
 
-            save_json_to_github(DATA_FILE, updated_data, cards_sha, "Manuell redigering i tabell")
+                    save_json_to_github(DATA_FILE, updated_data, cards_sha, "Manuell redigering i tabell")
+                    st.session_state.edit_mode = False
+                    st.success("Ändringarna har sparats!")
+                    st.rerun()
+
+            if st.button("❌ Avbryt redigering utan att spara"):
+                st.session_state.edit_mode = False
+                st.rerun()
+
         else:
-            st.caption("Klicka på 🗑️ till vänster för att radera en rad direkt.")
+            st.caption("Klicka på 🗑️ till vänster för att radera en rad direkt, eller klicka på '✏️ Aktivera Redigering' ovan för att ändra text/länkar/priser.")
             
             for idx, row in df.iterrows():
                 col_del, col_data = st.columns([0.3, 9.7])
