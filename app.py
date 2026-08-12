@@ -1,7 +1,4 @@
-# Let's create/verify the python code that will output the updated script or file if needed, but here we can generate the exact updated python code.
-# The user wants the full code of app.py with only those adjustments applied.
-
-full_code = '''import base64
+import base64
 import json
 import mimetypes
 import os
@@ -346,7 +343,7 @@ if st.session_state.is_admin:
             st.write("🖼️ **Bild på kortet:**")
             local_path = st.text_input(
                 "Klistra in bild-URL", 
-                placeholder="https://... eller D:\\\\Mapp\\\\bild.png"
+                placeholder="https://... eller D:\\Mapp\\bild.png"
             )
 
         st.write("")
@@ -636,7 +633,7 @@ with tab1:
         # --- B. GNS-PLÅNBOK & VALUTASKATT ---
         wallet_events = []
 
-        # Totalt insatta SEK från registrerade insättningar
+        # Totalt insatta SEK från alla registrerade insättningar
         total_deposits_sek = sum(float(d.get("Betalt_SEK", 0) or 0) for d in deposits)
 
         # 1. Manuella insättningar från bank
@@ -753,7 +750,7 @@ with tab1:
         # Totalt tillgångsvärde i systemet (Kvarvarande kort + USD i wallet)
         total_innehav_sek = unrealized_buy_sek + sek_omkostnad
         
-        # Totalt resultat i förhållande till insatta pengar
+        # Totalt resultat i förhållande till insatta pengar från banken
         total_eget_kapital_resultat = (total_innehav_sek + netto_vinst) - total_deposits_sek
 
         # --- C. TOTAL EKONOMI-KORT (PIKACHU STYLING) ---
@@ -811,5 +808,3 @@ with tab1:
             st.dataframe(pd.DataFrame(k4_card_export_rows), use_container_width=True)
             st.write("**Valutaförsäljningar:**")
             st.dataframe(pd.DataFrame(k4_valuta_export_rows), use_container_width=True)
-'''
-print("Code generated successfully.")
