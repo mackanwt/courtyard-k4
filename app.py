@@ -737,15 +737,82 @@ with tab1:
         brutto_resultat = (total_gains_sek - total_losses_sek) + (valuta_vinster_sek - valuta_forluster_sek)
         netto_vinst = brutto_resultat - total_skatt
 
-        # --- C. TOTAL EKONOMI-KORT (PIKACHU STYLING) ---
+        # --- BONUS: HÄMTA MARKNADSVÄRDE FRÅN COURTYARD LÄNKAR ---
+        import re
+        from bs4 import BeautifulSoup
+
+        def get_courtyard_market_value(url):
+            if not url or "courtyard.io" not in str(url):
+                return 0.0
+            try:
+                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+                resp = requests.get(url, headers=headers, timeout=4)
+                if resp.status_code == 200:
+                    soup = BeautifulSoup(resp.text, 'html.parser')
+                    # Letar efter mönster som "Market Value: $XX.XX" eller liknande i källkoden
+                    text = soup.get_text()
+                    match = re.search(r"Market Value:?\s*\$([\d\.]+)", text, re.IGNORECASE)
+                    if match:
+                        return float(match.group(1))
+            except Exception:
+                pass
+            return 0.0
+
+        # Beräkna totalt marknadsvärde i USD för osålda kort
+        unsold_cards_market_usd = 0.0
+        for c in cards:
+            if c.get("Status") != "Såld":
+                # Om manuellt värde finns sparat använd det, annars testa skrapa länken, annars köppris
+                m_val = c.get("Market_USD")
+                if not m_val and c.get("Länk"):
+                    m_val = get_courtyard_market_value(c.get("Länk"))
+                if not m_val:
+                    m_val = float(c.get("Buy_USD", 0) or 0)
+                
+                unsold_cards_market_usd += float(m_val)
+
+        # Dagens valutakurs för att värdera alla tillgångar i SEK idag
+        today_rate = get_usd_sek_rate(date.today())
+
+        # Totalt insatta SEK från banken
+        total_deposited_sek = sum(float(d.get("Betalt_SEK", 0) or 0) for d in deposits)
+        # Totalt uttagna SEK till banken
+        total_withdrawn_sek = sum(float(w.get("Erhållen_SEK", 0) or 0) for w in withdrawals)
+
+        # Nuvarande totalvärde i SEK = (USD i plånbok + USD i osålda kort) * Dagens kurs + Uttagna SEK
+        total_portfolio_usd = usd_saldo + unsold_cards_market_usd
+        total_portfolio_sek = (total_portfolio_usd * today_rate) + total_withdrawn_sek
+
+        # Totalt orealiserat resultat jämfört med insatt kapital
+        unrealized_total_profit_sek = total_portfolio_sek - total_deposited_sek
+
+        # --- C. TOTAL EKONOMI-KORT (TVÅ DELADE RUTOR) ---
         st.divider()
         
-        st.markdown(f"""
-        <div class="pikachu-card">
-            <h2 style="margin:0; font-size:1.6rem; color:#FFDE00;">⚡ REN NETTOVINST: {netto_vinst:,.2f} SEK</h2>
-            <p style="margin:6px 0 0 0; color:#E2E8F0;">Ditt faktiska resultat i fickan efter att all skatt på kort och valutakursförändringar är beräknad.</p>
-        </div>
-        """, unsafe_allow_html=True)
+        col_res1, col_res2 = st.columns(2)
+        
+        with col_res1:
+            st.markdown(f"""
+            <div class="pikachu-card" style="margin-bottom:0px; height: 100%;">
+                <h3 style="margin:0; font-size:1.1rem; color:#FFDE00;">⚡ REALISERAD NETTOVINST (EFTER SKATT)</h3>
+                <h2 style="margin:10px 0 0 0; font-size:1.8rem; color:#FFFFFF;">{netto_vinst:,.2f} SEK</h2>
+                <p style="margin:6px 0 0 0; color:#E2E8F0; font-size:0.85rem;">Faktiskt resultat i fickan på genomförda försäljningar efter skatt.</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        with col_res2:
+            profit_color = "#4E8" if unrealized_total_profit_sek >= 0 else "#F55"
+            prefix = "+" if unrealized_total_profit_sek >= 0 else ""
+            st.markdown(f"""
+            <div class="pikachu-card" style="margin-bottom:0px; height: 100%; border-color: {profit_color};">
+                <h3 style="margin:0; font-size:1.1rem; color:#FFDE00;">📈 TOTALT RESULTAT VS INSATT KAPITAL</h3>
+                <h2 style="margin:10px 0 0 0; font-size:1.8rem; color:{profit_color};">{prefix}{unrealized_total_profit_sek:,.2f} SEK</h2>
+                <p style="margin:6px 0 0 0; color:#E2E8F0; font-size:0.85rem;">(Portföljvärde idag inkl. osålda kort @ {today_rate:.2f} kr/$) − Insatta pengar ({total_deposited_sek:,.0f} kr).</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.write("")
+        st.write("")
 
         n1, n2, n3 = st.columns(3)
         n1.metric("Netto Kortresultat", f"{(total_gains_sek - total_losses_sek):,.2f} kr")
