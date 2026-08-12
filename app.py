@@ -2,7 +2,9 @@ import base64
 import json
 import mimetypes
 import os
+import re
 from datetime import date, datetime
+from bs4 import BeautifulSoup
 import pandas as pd
 import requests
 import streamlit as st
@@ -197,7 +199,6 @@ def save_json_to_github(filename, data, sha, commit_message="Uppdatera data"):
         st.error(f"Kunde inte spara till GitHub: {e}")
         return False
 
-# Hämta admin lösenord från secrets (eller använd standard om saknas)
 ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "1234")
 
 if "is_admin" not in st.session_state:
@@ -278,7 +279,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Admin Inloggning Längst Uppe
 top_col1, top_col2 = st.columns([3, 1])
 with top_col1:
     st.caption("Pikachu-powered spårning av dina Pokémon- och samlarkort för Skatteverket.")
@@ -298,7 +298,6 @@ with top_col2:
             st.session_state.is_admin = False
             st.rerun()
 
-# Om man inte är admin, visa bara Översikt. Om admin, visa alla flikar!
 if st.session_state.is_admin:
     tab1, tab2, tab3, tab4 = st.tabs(["📊 Översikt & Skatt", "➕ Registrera Nytt Köp", "📥 Registrera Insättning", "🏧 Registrera Uttag"])
 else:
@@ -321,35 +320,28 @@ shared_column_config = {
 
 cols_order = ["Bild", "Länk", "Name", "Buy_Date", "Buy_USD", "Buy_Currency_Rate", "Buy_SEK", "Sell_Date", "Sell_USD", "Sell_Currency_Rate", "Sell_SEK", "Status"]
 
-# --- FLIK 2: REGISTRERA NYTT KÖP (ENBART ADMIN) ---
+# --- FLIK 2: REGISTRERA NYTT KÖP ---
 if st.session_state.is_admin:
     with tab2:
         st.subheader("⚡ Lägg till nytt kort i samlingen")
-        
         col_a, col_b = st.columns(2)
         with col_a:
             b_name = st.text_input("Kort / Paket Namn", placeholder="t.ex. Pikachu Special Art Rare")
             b_date = st.date_input("Köpdatum", value=date.today())
-            
             auto_rate = get_usd_sek_rate(b_date)
             b_rate = st.number_input("USD/SEK Kurs (Hämtad från ECB)", value=auto_rate, step=0.01)
             b_usd = st.number_input("Inköpspris (USD)", min_value=0.0, step=1.0, value=50.0)
-            
             st.markdown(f"💳 **Beräknat inköpspris:** `{round(b_usd * b_rate, 2)} SEK`")
 
         with col_b:
             card_url = st.text_input("Sida på Courtyard (Valfritt)", placeholder="https://courtyard.io/card/...")
             st.write("🖼️ **Bild på kortet:**")
-            local_path = st.text_input(
-                "Klistra in bild-URL", 
-                placeholder="https://... eller D:\\Mapp\\bild.png"
-            )
+            local_path = st.text_input("Klistra in bild-URL", placeholder="https://... eller D:\\Mapp\\bild.png")
 
         st.write("")
         if st.button("⚡ Spara Köp i Samlingen", type="primary", use_container_width=True):
             if b_name and b_usd > 0:
                 img_data = format_image_source(local_path) if local_path else ""
-
                 new_card = {
                     "Bild": img_data,
                     "Länk": card_url if card_url else "",
@@ -371,11 +363,10 @@ if st.session_state.is_admin:
             else:
                 st.error("Fyll i namn och inköpspris.")
 
-    # --- FLIK 3: REGISTRERA INSÄTTNING (ENBART ADMIN) ---
+    # --- FLIK 3: REGISTRERA INSÄTTNING ---
     with tab3:
         st.subheader("📥 Registrera Insättning till Wallet")
         st.caption("Fyll i när du sätter in nya pengar från ditt svenska bankkonto till din Courtyard Wallet.")
-        
         col_d1, col_d2 = st.columns(2)
         with col_d1:
             d_date = st.date_input("Insättningsdatum", value=date.today(), key="dep_date")
@@ -386,11 +377,7 @@ if st.session_state.is_admin:
         st.write("")
         if st.button("⚡ Spara Insättning", type="primary", use_container_width=True):
             if d_usd > 0 and d_sek > 0:
-                new_deposit = {
-                    "Datum": str(d_date),
-                    "USD": float(d_usd),
-                    "Betalt_SEK": float(d_sek)
-                }
+                new_deposit = {"Datum": str(d_date), "USD": float(d_usd), "Betalt_SEK": float(d_sek)}
                 deposits.append(new_deposit)
                 if save_json_to_github(DEPOSITS_FILE, deposits, deposits_sha, "Lade till insättning"):
                     st.success("✅ Insättning registrerad!")
@@ -401,14 +388,12 @@ if st.session_state.is_admin:
         if deposits:
             st.divider()
             st.subheader("📜 Registrerade Insättningar")
-            df_d = pd.DataFrame(deposits)
-            st.dataframe(df_d, use_container_width=True)
+            st.dataframe(pd.DataFrame(deposits), use_container_width=True)
 
-    # --- FLIK 4: REGISTRERA UTTAG TILL BANK (ENBART ADMIN) ---
+    # --- FLIK 4: REGISTRERA UTTAG ---
     with tab4:
         st.subheader("🏧 Registrera Uttag till Bank")
         st.caption("Fyll i när du tar ut köpta USD/USDC från Courtyard till ditt svenska bankkonto.")
-        
         col_u1, col_u2 = st.columns(2)
         with col_u1:
             u_date = st.date_input("Uttagsdatum", value=date.today(), key="with_date")
@@ -419,11 +404,7 @@ if st.session_state.is_admin:
         st.write("")
         if st.button("⚡ Spara Uttags-transaktion", type="primary", use_container_width=True):
             if u_usd > 0 and u_sek > 0:
-                new_withdrawal = {
-                    "Datum": str(u_date),
-                    "USD": float(u_usd),
-                    "Erhållen_SEK": float(u_sek)
-                }
+                new_withdrawal = {"Datum": str(u_date), "USD": float(u_usd), "Erhållen_SEK": float(u_sek)}
                 withdrawals.append(new_withdrawal)
                 if save_json_to_github(WITHDRAWALS_FILE, withdrawals, withdrawals_sha, "Lade till uttag"):
                     st.success("✅ Uttag registrerat!")
@@ -434,8 +415,7 @@ if st.session_state.is_admin:
         if withdrawals:
             st.divider()
             st.subheader("📜 Registrerade Bankuttag")
-            df_w = pd.DataFrame(withdrawals)
-            st.dataframe(df_w, use_container_width=True)
+            st.dataframe(pd.DataFrame(withdrawals), use_container_width=True)
 
 # --- FLIK 1: ÖVERSIKT & SKATT ---
 with tab1:
@@ -466,7 +446,6 @@ with tab1:
                 df[c] = None
         
         df = df[cols_order]
-
         df["Buy_Date"] = pd.to_datetime(df["Buy_Date"], errors="coerce").dt.date
         df["Sell_Date"] = pd.to_datetime(df["Sell_Date"], errors="coerce").dt.date
 
@@ -565,7 +544,6 @@ with tab1:
                             use_container_width=True
                         )
             else:
-                # Skrivskyddad tabell för vanliga besökare
                 st.dataframe(
                     df,
                     column_config=shared_column_config,
@@ -599,17 +577,6 @@ with tab1:
                 except (ValueError, TypeError):
                     continue
 
-        k4_card_export_rows = []
-        if sold_cards_count > 0:
-            k4_card_export_rows.append({
-                "Antal / Belopp i utländsk valuta": sold_cards_count,
-                "Beteckning / Valutakod": "Courtyard-kort",
-                "Försäljningspris (SEK)": round(total_sell_sek),
-                "Omkostnadsbelopp (SEK)": round(total_buy_sek),
-                "Vinst (SEK)": round(total_gains_sek),
-                "Förlust (SEK)": round(total_losses_sek)
-            })
-
         deductible_loss = total_losses_sek * 0.70
         net_taxable_base = max(0.0, total_gains_sek - deductible_loss)
         card_tax = net_taxable_base * 0.30
@@ -626,29 +593,21 @@ with tab1:
         # --- B. GNS-PLÅNBOK & VALUTASKATT ---
         wallet_events = []
 
-        # 1. Manuella insättningar från bank
         for d in deposits:
             try:
                 wallet_events.append({
-                    "Datum": str(d["Datum"]),
-                    "Typ": "INFLÖDE",
-                    "Beskrivning": "Insättning från bank",
-                    "USD": float(d["USD"]),
-                    "SEK": float(d["Betalt_SEK"])
+                    "Datum": str(d["Datum"]), "Typ": "INFLÖDE", "Beskrivning": "Insättning från bank",
+                    "USD": float(d["USD"]), "SEK": float(d["Betalt_SEK"])
                 })
             except Exception:
                 pass
 
-        # 2. Köp och försäljningar av kort
         for c in cards:
             if c.get("Buy_USD") and float(c.get("Buy_USD") or 0) > 0:
                 try:
                     wallet_events.append({
-                        "Datum": str(c["Buy_Date"]),
-                        "Typ": "UTFLÖDE",
-                        "Beskrivning": f"Köp: {c.get('Name', 'Kort')}",
-                        "USD": float(c["Buy_USD"]),
-                        "SEK": float(c.get("Buy_SEK", 0) or 0)
+                        "Datum": str(c["Buy_Date"]), "Typ": "UTFLÖDE", "Beskrivning": f"Köp: {c.get('Name', 'Kort')}",
+                        "USD": float(c["Buy_USD"]), "SEK": float(c.get("Buy_SEK", 0) or 0)
                     })
                 except Exception:
                     pass
@@ -656,32 +615,22 @@ with tab1:
             if c.get("Status") == "Såld" and c.get("Sell_Date") and c.get("Sell_USD"):
                 try:
                     wallet_events.append({
-                        "Datum": str(c["Sell_Date"]),
-                        "Typ": "INFLÖDE",
-                        "Beskrivning": f"Sålt: {c.get('Name', 'Kort')}",
-                        "USD": float(c["Sell_USD"]),
-                        "SEK": float(c.get("Sell_SEK", 0) or 0)
+                        "Datum": str(c["Sell_Date"]), "Typ": "INFLÖDE", "Beskrivning": f"Sålt: {c.get('Name', 'Kort')}",
+                        "USD": float(c["Sell_USD"]), "SEK": float(c.get("Sell_SEK", 0) or 0)
                     })
                 except Exception:
                     pass
 
-        # 3. Uttag till bank
         for w in withdrawals:
             try:
                 wallet_events.append({
-                    "Datum": str(w["Datum"]),
-                    "Typ": "UTFLÖDE",
-                    "Beskrivning": "Uttag till bank",
-                    "USD": float(w["USD"]),
-                    "SEK": float(w["Erhållen_SEK"])
+                    "Datum": str(w["Datum"]), "Typ": "UTFLÖDE", "Beskrivning": "Uttag till bank",
+                    "USD": float(w["USD"]), "SEK": float(w["Erhållen_SEK"])
                 })
             except Exception:
                 pass
 
-        wallet_events = sorted(
-            wallet_events, 
-            key=lambda x: (pd.to_datetime(x["Datum"]), 0 if x["Typ"] == "INFLÖDE" else 1)
-        )
+        wallet_events = sorted(wallet_events, key=lambda x: (pd.to_datetime(x["Datum"]), 0 if x["Typ"] == "INFLÖDE" else 1))
 
         usd_saldo = 0.0
         sek_omkostnad = 0.0
@@ -716,19 +665,7 @@ with tab1:
                 else:
                     usd_saldo -= ev["USD"]
 
-        k4_valuta_export_rows = []
-        if total_valuta_usd > 0:
-            k4_valuta_export_rows.append({
-                "Antal / Belopp i USD": round(total_valuta_usd),
-                "Beteckning / Valutakod": "USD",
-                "Försäljningspris (SEK)": round(total_valuta_sell_sek),
-                "Omkostnadsbelopp (SEK)": round(total_valuta_omkostnad_sek),
-                "Vinst (SEK)": round(valuta_vinster_sek),
-                "Förlust (SEK)": round(valuta_forluster_sek)
-            })
-
         nuvarande_snittkurs = (sek_omkostnad / usd_saldo) if usd_saldo > 0 else 0.0
-
         valuta_deductible_loss = valuta_forluster_sek * 0.70
         valuta_taxable_base = max(0.0, valuta_vinster_sek - valuta_deductible_loss)
         valuta_tax = valuta_taxable_base * 0.30
@@ -738,9 +675,6 @@ with tab1:
         netto_vinst = brutto_resultat - total_skatt
 
         # --- BONUS: HÄMTA MARKNADSVÄRDE FRÅN COURTYARD LÄNKAR ---
-        import re
-        from bs4 import BeautifulSoup
-
         def get_courtyard_market_value(url):
             if not url or "courtyard.io" not in str(url):
                 return 0.0
@@ -749,7 +683,6 @@ with tab1:
                 resp = requests.get(url, headers=headers, timeout=4)
                 if resp.status_code == 200:
                     soup = BeautifulSoup(resp.text, 'html.parser')
-                    # Letar efter mönster som "Market Value: $XX.XX" eller liknande i källkoden
                     text = soup.get_text()
                     match = re.search(r"Market Value:?\s*\$([\d\.]+)", text, re.IGNORECASE)
                     if match:
@@ -758,101 +691,40 @@ with tab1:
                 pass
             return 0.0
 
-        # Beräkna totalt marknadsvärde i USD för osålda kort
         unsold_cards_market_usd = 0.0
         for c in cards:
             if c.get("Status") != "Såld":
-                # Om manuellt värde finns sparat använd det, annars testa skrapa länken, annars köppris
                 m_val = c.get("Market_USD")
                 if not m_val and c.get("Länk"):
                     m_val = get_courtyard_market_value(c.get("Länk"))
                 if not m_val:
                     m_val = float(c.get("Buy_USD", 0) or 0)
-                
                 unsold_cards_market_usd += float(m_val)
 
-        # Dagens valutakurs för att värdera alla tillgångar i SEK idag
         today_rate = get_usd_sek_rate(date.today())
-
-        # Totalt insatta SEK från banken
         total_deposited_sek = sum(float(d.get("Betalt_SEK", 0) or 0) for d in deposits)
-        # Totalt uttagna SEK till banken
         total_withdrawn_sek = sum(float(w.get("Erhållen_SEK", 0) or 0) for w in withdrawals)
 
-        # Nuvarande totalvärde i SEK = (USD i plånbok + USD i osålda kort) * Dagens kurs + Uttagna SEK
-        total_portfolio_usd = usd_saldo + unsold_cards_market_usd
-        total_portfolio_sek = (total_portfolio_usd * today_rate) + total_withdrawn_sek
+        # Totalt tillgångsvärde i SEK (Fix av den avbrutna koden)
+        total_assets_sek = (usd_saldo + unsold_cards_market_usd) * today_rate
 
-        # Totalt orealiserat resultat jämfört med insatt kapital
-        unrealized_total_profit_sek = total_portfolio_sek - total_deposited_sek
-
-        # --- C. TOTAL EKONOMI-KORT (TVÅ DELADE RUTOR) ---
+        # --- SAMMANFATTANDE PIKACHU DASHBOARD ---
         st.divider()
-        
-        col_res1, col_res2 = st.columns(2)
-        
-        with col_res1:
-            st.markdown(f"""
-            <div class="pikachu-card" style="margin-bottom:0px; height: 100%;">
-                <h3 style="margin:0; font-size:1.1rem; color:#FFDE00;">⚡ REALISERAD NETTOVINST (EFTER SKATT)</h3>
-                <h2 style="margin:10px 0 0 0; font-size:1.8rem; color:#FFFFFF;">{netto_vinst:,.2f} SEK</h2>
-                <p style="margin:6px 0 0 0; color:#E2E8F0; font-size:0.85rem;">Faktiskt resultat i fickan på genomförda försäljningar efter skatt.</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        with col_res2:
-            profit_color = "#4E8" if unrealized_total_profit_sek >= 0 else "#F55"
-            prefix = "+" if unrealized_total_profit_sek >= 0 else ""
-            st.markdown(f"""
-            <div class="pikachu-card" style="margin-bottom:0px; height: 100%; border-color: {profit_color};">
-                <h3 style="margin:0; font-size:1.1rem; color:#FFDE00;">📈 TOTALT RESULTAT VS INSATT KAPITAL</h3>
-                <h2 style="margin:10px 0 0 0; font-size:1.8rem; color:{profit_color};">{prefix}{unrealized_total_profit_sek:,.2f} SEK</h2>
-                <p style="margin:6px 0 0 0; color:#E2E8F0; font-size:0.85rem;">(Portföljvärde idag inkl. osålda kort @ {today_rate:.2f} kr/$) − Insatta pengar ({total_deposited_sek:,.0f} kr).</p>
-            </div>
-            """, unsafe_allow_html=True)
+        st.markdown("""
+        <div class="pikachu-card">
+            <h3 style="margin-top:0; color:#FFDE00 !important;">⚡ Pikachu Totalöversikt</h3>
+            <p>Sammanställning av dina innehav, saldon och total skattesituation.</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-        st.write("")
-        st.write("")
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Wallet USD-Saldo", f"${usd_saldo:,.2f}", f"Snittkurs: {nuvarande_snittkurs:.2f} SEK")
+        m2.metric("Osålda Kort (Marknad)", f"${unsold_cards_market_usd:,.2f}")
+        m3.metric("Totalt Innehav (SEK)", f"{total_assets_sek:,.2f} kr", f"Dagens kurs: {today_rate:.2f}")
+        m4.metric("Total Beräknad Skatt", f"{total_skatt:,.2f} kr")
 
-        n1, n2, n3 = st.columns(3)
-        n1.metric("Netto Kortresultat", f"{(total_gains_sek - total_losses_sek):,.2f} kr")
-        n2.metric("Netto Valutaresultat", f"{(valuta_vinster_sek - valuta_forluster_sek):,.2f} kr")
-        n3.metric("Total Beräknad Skatt", f"-{total_skatt:,.2f} kr", delta_color="inverse")
-
-        st.write("")
-        p1, p2, p3 = st.columns(3)
-        p1.metric("USD kvar i Courtyard Wallet", f"${usd_saldo:,.2f}")
-        p2.metric("Inneliggande SEK-Omkostnad", f"{sek_omkostnad:,.2f} kr")
-        p3.metric("Aktiv Snittkurs (GNS)", f"{nuvarande_snittkurs:.4f} kr/$")
-
-        # --- D. DEKLARATIONSHJÄLP ---
-        st.divider()
-        st.subheader("📋 Siffror för Inkomstdeklarationen")
-        st.caption("Färdigavrundade belopp att fylla i hos Skatteverket:")
-
-        m_k4_vinst_kort = round(total_gains_sek)
-        m_k4_forlust_kort = round(total_losses_sek)
-        m_k4_vinst_valuta = round(valuta_vinster_sek)
-        m_k4_forlust_valuta = round(valuta_forluster_sek)
-
-        s1, s2, s3, s4 = st.columns(4)
-        s1.metric("Punkt 7.5 (Kortvinst)", f"{m_k4_vinst_kort} kr")
-        s2.metric("Punkt 8.4 (Kortförlust)", f"{m_k4_forlust_kort} kr")
-        s3.metric("Punkt 7.2 (Valutavinst)", f"{m_k4_vinst_valuta} kr")
-        s4.metric("Punkt 8.1 (Valutaförlust)", f"{m_k4_forlust_valuta} kr")
-
-        with st.expander("📄 Visa exakta rader för K4-blanketten"):
-            st.markdown("#### **Avsnitt D – Övriga tillgångar (Kort)**")
-            if k4_card_export_rows:
-                st.dataframe(pd.DataFrame(k4_card_export_rows), use_container_width=True)
-            else:
-                st.caption("Inga sålda kort registrerade ännu.")
-
-            st.markdown("#### **Avsnitt C – Valuta (Uttag till bank)**")
-            if k4_valuta_export_rows:
-                st.dataframe(pd.DataFrame(k4_valuta_export_rows), use_container_width=True)
-            else:
-                st.caption("Inga bankuttag registrerade ännu.")
-
-    else:
-        st.info("Ingen data hittades. Logga in som Admin för att lägga till köp, insättningar eller uttag!")
+        m5, m6, m7, m8 = st.columns(4)
+        m5.metric("Totalt Insatt (Bank)", f"{total_deposited_sek:,.2f} kr")
+        m6.metric("Totalt Uttaget (Bank)", f"{total_withdrawn_sek:,.2f} kr")
+        m7.metric("Bruttoresultat", f"{brutto_resultat:,.2f} kr")
+        m8.metric("Nettoresultat (efter skatt)", f"{netto_vinst:,.2f} kr")
