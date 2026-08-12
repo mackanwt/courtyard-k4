@@ -1,3 +1,422 @@
+import base64
+import json
+import mimetypes
+import os
+import re
+from datetime import date, datetime
+from bs4 import BeautifulSoup
+import pandas as pd
+import requests
+import streamlit as st
+from github import Github
+
+# ==========================================
+# 0. SIDINSTÄLLNINGAR & PIKACHU / LIGHTNING CSS
+# ==========================================
+st.set_page_config(
+    page_title="Courtyard K4-Räknare | Pokémon Edition",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+st.markdown("""
+<style>
+    @import url('https://fonts.cdnfonts.com/css/pokemon-solid');
+
+    .main {
+        background-color: #0E1117;
+    }
+
+    .pokemon-font {
+        font-family: 'Pokemon Solid', sans-serif;
+        color: #FFDE00 !important;
+        -webkit-text-stroke: 2px #3B4CCA;
+        font-size: 3rem;
+        letter-spacing: 3px;
+        margin: 0;
+        line-height: 1.1;
+        text-shadow: 3px 3px 0px #1D2C5E;
+    }
+
+    .pokemon-banner {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 20px;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #2D3748;
+    }
+
+    .pokemon-sprites {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: rgba(26, 29, 36, 0.8);
+        padding: 8px 16px;
+        border-radius: 16px;
+        border: 1px solid #3A3D45;
+    }
+
+    .pokemon-sprites img {
+        height: 70px;
+        width: auto;
+        filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.5));
+        transition: transform 0.2s ease-in-out;
+    }
+
+    .pokemon-sprites img:hover {
+        transform: scale(1.25) translateY(-5px);
+    }
+    
+    h1, h2, h3 {
+        color: #FFDE00 !important;
+        font-family: 'Trebuchet MS', sans-serif;
+    }
+
+    div[data-testid="stMetric"] {
+        background-color: #1A1D24;
+        border: 1px solid #3A3D45;
+        padding: 16px;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        transition: all 0.25s ease-in-out;
+    }
+    div[data-testid="stMetric"]:hover {
+        border-color: #FFDE00;
+        box-shadow: 0 0 12px rgba(255, 222, 0, 0.35);
+        transform: translateY(-2px);
+    }
+    
+    div[data-testid="stMetricLabel"],
+    div[data-testid="stMetricLabel"] *,
+    label[data-testid="stMetricLabel"] {
+        font-size: 0.88rem !important;
+        color: #FFDE00 !important;
+        font-weight: 700 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.6px;
+    }
+    
+    div[data-testid="stMetricValue"],
+    div[data-testid="stMetricValue"] * {
+        font-size: 1.6rem !important;
+        font-weight: 800 !important;
+        color: #FFFFFF !important;
+    }
+
+    div[data-testid="stCaptionContainer"],
+    .stCaption {
+        color: #E2E8F0 !important;
+        font-size: 0.95rem !important;
+    }
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: #14171F;
+        padding: 6px;
+        border-radius: 10px;
+        border: 1px solid #2D3748;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 45px;
+        white-space: pre-wrap;
+        border-radius: 8px;
+        color: #CBD5E1 !important;
+        font-weight: 600;
+        padding: 0px 16px;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #FFDE00 !important;
+        color: #000000 !important;
+        font-weight: 700;
+        box-shadow: 0 0 10px rgba(255, 222, 0, 0.4);
+    }
+
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #FFDE00 0%, #E6B800 100%) !important;
+        color: #000000 !important;
+        font-weight: 700 !important;
+        border: none !important;
+        border-radius: 8px !important;
+        box-shadow: 0 4px 10px rgba(255, 222, 0, 0.3) !important;
+        transition: all 0.2s ease !important;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        box-shadow: 0 0 15px rgba(255, 222, 0, 0.6) !important;
+        transform: scale(1.01);
+    }
+
+    hr {
+        margin: 2rem 0 !important;
+        border-color: #3A3D45 !important;
+    }
+
+    .pikachu-card {
+        background: linear-gradient(135deg, #2A2400 0%, #1A1700 100%);
+        padding: 22px;
+        border-radius: 14px;
+        border: 2px solid #FFDE00;
+        margin-bottom: 20px;
+        box-shadow: 0 0 18px rgba(255, 222, 0, 0.25);
+        color: #FFFDF0;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# ==========================================
+# 1. GITHUB DATAHANTERING & ADMIN-KONTROLL
+# ==========================================
+def get_github_repo():
+    token = st.secrets["GITHUB_TOKEN"]
+    repo_name = st.secrets["GITHUB_REPO"]
+    g = Github(token)
+    return g.get_repo(repo_name)
+
+def load_json_from_github(filename, default_value):
+    try:
+        repo = get_github_repo()
+        file_content = repo.get_contents(filename)
+        data = json.loads(file_content.decoded_content.decode("utf-8"))
+        return data, file_content.sha
+    except Exception:
+        return default_value, None
+
+def save_json_to_github(filename, data, sha, commit_message="Uppdatera data"):
+    try:
+        repo = get_github_repo()
+        json_str = json.dumps(data, indent=4, ensure_ascii=False)
+        if sha:
+            repo.update_file(filename, commit_message, json_str, sha)
+        else:
+            repo.create_file(filename, commit_message, json_str)
+        st.cache_data.clear()
+        st.cache_resource.clear()
+        return True
+    except Exception as e:
+        st.error(f"Kunde inte spara till GitHub: {e}")
+        return False
+
+ADMIN_PASSWORD = st.secrets.get("ADMIN_PASSWORD", "1234")
+
+if "is_admin" not in st.session_state:
+    st.session_state.is_admin = False
+
+DATA_FILE = "courtyard_cards_history.json"
+WITHDRAWALS_FILE = "courtyard_withdrawals_history.json"
+DEPOSITS_FILE = "courtyard_deposits_history.json"
+
+cards, cards_sha = load_json_from_github(DATA_FILE, [])
+withdrawals, withdrawals_sha = load_json_from_github(WITHDRAWALS_FILE, [])
+deposits, deposits_sha = load_json_from_github(DEPOSITS_FILE, [])
+
+# ==========================================
+# 2. HJÄLPFUNKTIONER
+# ==========================================
+def format_image_source(img_input):
+    if not img_input:
+        return ""
+    clean_path = str(img_input).strip().strip('"').strip("'")
+    if clean_path.startswith("http://") or clean_path.startswith("https://") or clean_path.startswith("data:image/"):
+        return clean_path
+    if os.path.exists(clean_path) and os.path.isfile(clean_path):
+        try:
+            mime_type, _ = mimetypes.guess_type(clean_path)
+            if not mime_type:
+                mime_type = "image/png"
+            with open(clean_path, "rb") as image_file:
+                encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
+            return f"data:{mime_type};base64,{encoded_string}"
+        except Exception:
+            return clean_path
+    return clean_path
+
+@st.cache_data(ttl=86400)
+def get_usd_sek_rate(fetch_date):
+    if not fetch_date or pd.isna(fetch_date) or str(fetch_date).strip() in ["", "None", "Nat"]:
+        return 10.50
+    if isinstance(fetch_date, (datetime, date)):
+        date_str = fetch_date.strftime("%Y-%m-%d")
+    else:
+        date_str = str(fetch_date).strip()
+
+    try:
+        url = f"https://api.frankfurter.app/{date_str}?from=USD&to=SEK"
+        res = requests.get(url, timeout=5).json()
+        if "rates" in res and "SEK" in res["rates"]:
+            return round(res["rates"]["SEK"], 4)
+    except Exception:
+        pass
+    
+    try:
+        url_alt = f"https://open.er-api.com/v6/historical/{date_str}"
+        res_alt = requests.get(url_alt, timeout=5).json()
+        if res_alt.get("result") == "success" and "SEK" in res_alt.get("rates", {}):
+            return round(res_alt["rates"]["SEK"], 4)
+    except Exception:
+        pass
+
+    return 10.50
+
+# ==========================================
+# 3. HEADER BANNER MED POKÉMON-FONT & SPRITES
+# ==========================================
+st.markdown("""
+<div class="pokemon-banner">
+    <div>
+        <h1 class="pokemon-font">Pokémon</h1>
+        <h2 style="font-size: 1.8rem; margin: 0; color: #FFDE00 !important;">⚡ Courtyard K4-Räknare ⚡</h2>
+    </div>
+    <div class="pokemon-sprites">
+        <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/172.png" alt="Pichu" title="Pichu">
+        <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png" alt="Pikachu" title="Pikachu">
+        <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/26.png" alt="Raichu" title="Raichu">
+        <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/10100.png" alt="Alolan Raichu" title="Alolan Raichu">
+        <img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/778.png" alt="Mimikyu" title="Mimikyu">
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+top_col1, top_col2 = st.columns([3, 1])
+with top_col1:
+    st.caption("Pikachu-powered spårning av dina Pokémon- och samlarkort för Skatteverket.")
+with top_col2:
+    if not st.session_state.is_admin:
+        with st.popover("🔑 Logga in som Admin"):
+            pwd_input = st.text_input("Lösenord", type="password", key="admin_pwd_input")
+            if st.button("Logga in", type="primary"):
+                if pwd_input == ADMIN_PASSWORD:
+                    st.session_state.is_admin = True
+                    st.success("Inloggad!")
+                    st.rerun()
+                else:
+                    st.error("Fel lösenord!")
+    else:
+        if st.button("🔓 Admin Inloggad (Logga ut)"):
+            st.session_state.is_admin = False
+            st.rerun()
+
+if st.session_state.is_admin:
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Översikt & Skatt", "➕ Registrera Nytt Köp", "📥 Registrera Insättning", "🏧 Registrera Uttag"])
+else:
+    tab1, = st.tabs(["📊 Översikt & Skatt"])
+
+shared_column_config = {
+    "Bild": st.column_config.ImageColumn("Bild", width="small"),
+    "Länk": st.column_config.LinkColumn("Länk", display_text="Öppna 🔗", width="small"),
+    "Name": st.column_config.TextColumn("Kortnamn", width="medium"),
+    "Buy_Date": st.column_config.DateColumn("Köpdatum", width="small"),
+    "Buy_USD": st.column_config.NumberColumn("Köp ($)", format="$%.2f", width="small"),
+    "Buy_Currency_Rate": st.column_config.NumberColumn("Köp Kurs", format="%.2f", width="small"),
+    "Buy_SEK": st.column_config.NumberColumn("Köp (SEK)", format="%.2f kr", width="small"),
+    "Sell_Date": st.column_config.DateColumn("Säljdatum", width="small"),
+    "Sell_USD": st.column_config.NumberColumn("Sälj ($)", format="$%.2f", width="small"),
+    "Sell_Currency_Rate": st.column_config.NumberColumn("Sälj Kurs", format="%.2f", width="small"),
+    "Sell_SEK": st.column_config.NumberColumn("Sälj (SEK)", format="%.2f kr", width="small"),
+    "Status": st.column_config.TextColumn("Status", width="small"),
+}
+
+cols_order = ["Bild", "Länk", "Name", "Buy_Date", "Buy_USD", "Buy_Currency_Rate", "Buy_SEK", "Sell_Date", "Sell_USD", "Sell_Currency_Rate", "Sell_SEK", "Status"]
+
+# --- FLIK 2: REGISTRERA NYTT KÖP ---
+if st.session_state.is_admin:
+    with tab2:
+        st.subheader("⚡ Lägg till nytt kort i samlingen")
+        col_a, col_b = st.columns(2)
+        with col_a:
+            b_name = st.text_input("Kort / Paket Namn", placeholder="t.ex. Pikachu Special Art Rare")
+            b_date = st.date_input("Köpdatum", value=date.today())
+            auto_rate = get_usd_sek_rate(b_date)
+            b_rate = st.number_input("USD/SEK Kurs (Hämtad från ECB)", value=auto_rate, step=0.01)
+            b_usd = st.number_input("Inköpspris (USD)", min_value=0.0, step=1.0, value=50.0)
+            st.markdown(f"💳 **Beräknat inköpspris:** `{round(b_usd * b_rate, 2)} SEK`")
+
+        with col_b:
+            card_url = st.text_input("Sida på Courtyard (Valfritt)", placeholder="https://courtyard.io/card/...")
+            st.write("🖼️ **Bild på kortet:**")
+            local_path = st.text_input("Klistra in bild-URL", placeholder="https://... eller D:\\Mapp\\bild.png")
+
+        st.write("")
+        if st.button("⚡ Spara Köp i Samlingen", type="primary", use_container_width=True):
+            if b_name and b_usd > 0:
+                img_data = format_image_source(local_path) if local_path else ""
+                new_card = {
+                    "Bild": img_data,
+                    "Länk": card_url if card_url else "",
+                    "Name": b_name,
+                    "Buy_Date": str(b_date),
+                    "Buy_USD": float(b_usd),
+                    "Buy_Currency_Rate": float(b_rate),
+                    "Buy_SEK": round(float(b_usd) * float(b_rate), 2),
+                    "Sell_Date": "",
+                    "Sell_USD": None,
+                    "Sell_Currency_Rate": None,
+                    "Sell_SEK": None,
+                    "Status": "Äger kvar"
+                }
+                cards.append(new_card)
+                if save_json_to_github(DATA_FILE, cards, cards_sha, f"Lade till köp: {b_name}"):
+                    st.success(f"⚡ Lade till {b_name}!")
+                    st.rerun()
+            else:
+                st.error("Fyll i namn och inköpspris.")
+
+    # --- FLIK 3: REGISTRERA INSÄTTNING ---
+    with tab3:
+        st.subheader("📥 Registrera Insättning till Wallet")
+        st.caption("Fyll i när du sätter in nya pengar från ditt svenska bankkonto till din Courtyard Wallet.")
+        col_d1, col_d2 = st.columns(2)
+        with col_d1:
+            d_date = st.date_input("Insättningsdatum", value=date.today(), key="dep_date")
+            d_usd = st.number_input("Antal USD insatta ($)", min_value=0.01, step=10.0, value=50.0, key="dep_usd")
+        with col_d2:
+            d_sek = st.number_input("Totalt betalt belopp i SEK (från banken)", min_value=0.0, step=100.0, value=525.0, key="dep_sek")
+            
+        st.write("")
+        if st.button("⚡ Spara Insättning", type="primary", use_container_width=True):
+            if d_usd > 0 and d_sek > 0:
+                new_deposit = {"Datum": str(d_date), "USD": float(d_usd), "Betalt_SEK": float(d_sek)}
+                deposits.append(new_deposit)
+                if save_json_to_github(DEPOSITS_FILE, deposits, deposits_sha, "Lade till insättning"):
+                    st.success("✅ Insättning registrerad!")
+                    st.rerun()
+            else:
+                st.error("Ange ett giltigt USD-belopp och betalt SEK-belopp.")
+
+        if deposits:
+            st.divider()
+            st.subheader("📜 Registrerade Insättningar")
+            st.dataframe(pd.DataFrame(deposits), use_container_width=True)
+
+    # --- FLIK 4: REGISTRERA UTTAG ---
+    with tab4:
+        st.subheader("🏧 Registrera Uttag till Bank")
+        st.caption("Fyll i när du tar ut köpta USD/USDC från Courtyard till ditt svenska bankkonto.")
+        col_u1, col_u2 = st.columns(2)
+        with col_u1:
+            u_date = st.date_input("Uttagsdatum", value=date.today(), key="with_date")
+            u_usd = st.number_input("Antal USD du tog ut ($)", min_value=0.01, step=10.0, value=50.0, key="with_usd")
+        with col_u2:
+            u_sek = st.number_input("Totalt erhållit belopp på banken (SEK)", min_value=0.0, step=100.0, value=500.0, key="with_sek")
+            
+        st.write("")
+        if st.button("⚡ Spara Uttags-transaktion", type="primary", use_container_width=True):
+            if u_usd > 0 and u_sek > 0:
+                new_withdrawal = {"Datum": str(u_date), "USD": float(u_usd), "Erhållen_SEK": float(u_sek)}
+                withdrawals.append(new_withdrawal)
+                if save_json_to_github(WITHDRAWALS_FILE, withdrawals, withdrawals_sha, "Lade till uttag"):
+                    st.success("✅ Uttag registrerat!")
+                    st.rerun()
+            else:
+                st.error("Ange ett giltigt USD-belopp och erhållit SEK-belopp.")
+
+        if withdrawals:
+            st.divider()
+            st.subheader("📜 Registrerade Bankuttag")
+            st.dataframe(pd.DataFrame(withdrawals), use_container_width=True)
+
 # --- FLIK 1: ÖVERSIKT & SKATT ---
 with tab1:
     if cards or deposits or withdrawals:
@@ -242,7 +661,7 @@ with tab1:
         valuta_taxable_base = max(0.0, valuta_vinster_sek - valuta_deductible_loss)
         valuta_tax = valuta_taxable_base * 0.30
 
-        # --- AVSNITT FÖR VALUTASKATT (ÅTERSTÄLLT HÄR) ---
+        # --- AVSNITT FÖR VALUTASKATT ---
         st.divider()
         st.markdown("### 💱 Skatt på Valuta / USDC-uttag (Bilaga K4 - Avsnitt C)")
 
@@ -257,7 +676,6 @@ with tab1:
         brutto_resultat = (total_gains_sek - total_losses_sek) + (valuta_vinster_sek - valuta_forluster_sek)
         netto_vinst = brutto_resultat - total_skatt
 
-        # MARKNADSVÄRDE HÄMTNING
         def get_courtyard_market_value(url):
             if not url or "courtyard.io" not in str(url):
                 return 0.0
