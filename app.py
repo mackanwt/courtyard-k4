@@ -630,6 +630,10 @@ with tab1:
         c3.metric("Avdragsgill förlust (70%)", f"{deductible_loss:,.2f} kr")
         c4.metric("Kortskatt (30%)", f"{card_tax:,.2f} kr")
 
+        if k4_card_export_rows:
+            st.write("📋 **Underlag för K4 Avsnitt D (Kort):**")
+            st.dataframe(pd.DataFrame(k4_card_export_rows), hide_index=True, use_container_width=True)
+
         # --- B. GNS-PLÅNBOK & VALUTASKATT ---
         wallet_events = []
 
@@ -748,7 +752,22 @@ with tab1:
         total_innehav_sek = unrealized_buy_sek + sek_omkostnad
         beraknat_netto_totalt = netto_vinst + total_innehav_sek
 
-        # --- C. TOTAL EKONOMI-KORT (PIKACHU STYLING) ---
+        # --- C. VALUTASKATT (BILAGA K4 - AVSNITT C) ---
+        st.divider()
+        st.markdown("### 💱 Valutavinst / Valutaförlust (Bilaga K4 - Avsnitt C)")
+        st.caption(f"Saldo i Wallet: **${usd_saldo:,.2f} USD** (Samlat omkostnadsbelopp: **{sek_omkostnad:,.2f} SEK** | Genomsnittskurs: **{nuvarande_snittkurs:.4f} SEK/USD**)")
+
+        v1, v2, v3, v4 = st.columns(4)
+        v1.metric("Valutavinster", f"{valuta_vinster_sek:,.2f} kr")
+        v2.metric("Valutaförluster", f"{valuta_forluster_sek:,.2f} kr")
+        v3.metric("Avdragsgill förlust (70%)", f"{valuta_deductible_loss:,.2f} kr")
+        v4.metric("Valutaskatt (30%)", f"{valuta_tax:,.2f} kr")
+
+        if k4_valuta_export_rows:
+            st.write("📋 **Underlag för K4 Avsnitt C (Valuta):**")
+            st.dataframe(pd.DataFrame(k4_valuta_export_rows), hide_index=True, use_container_width=True)
+
+        # --- D. TOTAL EKONOMI-KORT (PIKACHU STYLING) ---
         st.divider()
         
         col_box1, col_box2 = st.columns(2)
@@ -773,31 +792,3 @@ with tab1:
         n1.metric("Netto Kortresultat", f"{(total_gains_sek - total_losses_sek):,.2f} kr")
         n2.metric("Netto Valutaresultat", f"{(valuta_vinster_sek - valuta_forluster_sek):,.2f} kr")
         n3.metric("Total Beräknad Skatt", f"-{total_skatt:,.2f} kr", delta_color="inverse")
-
-        st.write("")
-        p1, p2, p3 = st.columns(3)
-        p1.metric("USD kvar i Courtyard Wallet", f"${usd_saldo:,.2f}")
-        p2.metric("Inneliggande SEK-Omkostnad", f"{sek_omkostnad:,.2f} kr")
-        p3.metric("Aktiv Snittkurs (GNS)", f"{nuvarande_snittkurs:.4f} kr/$")
-
-        # --- D. DEKLARATIONSHJÄLP ---
-        st.divider()
-        st.subheader("📋 Siffror för Inkomstdeklarationen")
-        st.caption("Färdigavrundade belopp att fylla i hos Skatteverket:")
-
-        m_k4_vinst_kort = round(total_gains_sek)
-        m_k4_forlust_kort = round(total_losses_sek)
-        m_k4_vinst_valuta = round(valuta_vinster_sek)
-        m_k4_forlust_valuta = round(valuta_forluster_sek)
-
-        s1, s2, s3, s4 = st.columns(4)
-        s1.metric("Punkt 7.5 (Kortvinst)", f"{m_k4_vinst_kort} kr")
-        s2.metric("Punkt 8.4 (Kortförlust)", f"{m_k4_forlust_kort} kr")
-        s3.metric("Punkt 7.2 (Valutavinst)", f"{m_k4_vinst_valuta} kr")
-        s4.metric("Punkt 8.1 (Valutaförlust)", f"{m_k4_forlust_valuta} kr")
-
-        with st.expander("📄 Visa exportdata för K4"):
-            st.write("**Kortförsäljningar:**")
-            st.dataframe(pd.DataFrame(k4_card_export_rows), use_container_width=True)
-            st.write("**Valutaförsäljningar:**")
-            st.dataframe(pd.DataFrame(k4_valuta_export_rows), use_container_width=True)
