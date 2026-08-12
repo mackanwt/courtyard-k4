@@ -1,4 +1,7 @@
-import base64
+# Let's create/verify the python code that will output the updated script or file if needed, but here we can generate the exact updated python code.
+# The user wants the full code of app.py with only those adjustments applied.
+
+full_code = '''import base64
 import json
 import mimetypes
 import os
@@ -343,7 +346,7 @@ if st.session_state.is_admin:
             st.write("🖼️ **Bild på kortet:**")
             local_path = st.text_input(
                 "Klistra in bild-URL", 
-                placeholder="https://... eller D:\\Mapp\\bild.png"
+                placeholder="https://... eller D:\\\\Mapp\\\\bild.png"
             )
 
         st.write("")
@@ -633,6 +636,9 @@ with tab1:
         # --- B. GNS-PLÅNBOK & VALUTASKATT ---
         wallet_events = []
 
+        # Totalt insatta SEK från registrerade insättningar
+        total_deposits_sek = sum(float(d.get("Betalt_SEK", 0) or 0) for d in deposits)
+
         # 1. Manuella insättningar från bank
         for d in deposits:
             try:
@@ -744,9 +750,11 @@ with tab1:
         brutto_resultat = (total_gains_sek - total_losses_sek) + (valuta_vinster_sek - valuta_forluster_sek)
         netto_vinst = brutto_resultat - total_skatt
         
-        # Beräkning inklusive orealiserade värden (kvarvarande kort + saldo i wallet)
+        # Totalt tillgångsvärde i systemet (Kvarvarande kort + USD i wallet)
         total_innehav_sek = unrealized_buy_sek + sek_omkostnad
-        beraknat_netto_totalt = netto_vinst + total_innehav_sek
+        
+        # Totalt resultat i förhållande till insatta pengar
+        total_eget_kapital_resultat = (total_innehav_sek + netto_vinst) - total_deposits_sek
 
         # --- C. TOTAL EKONOMI-KORT (PIKACHU STYLING) ---
         st.divider()
@@ -763,8 +771,10 @@ with tab1:
         with col_box2:
             st.markdown(f"""
             <div class="pikachu-card" style="border-color: #3B4CCA;">
-                <h2 style="margin:0; font-size:1.5rem; color:#FFDE00;">⚡ TOTALT NETTO (INKL. INNEHAV): {beraknat_netto_totalt:,.2f} SEK</h2>
-                <p style="margin:6px 0 0 0; color:#E2E8F0;">Inkluderar din rena nettovinst plus omkostnadsbeloppet för alla kort du äger kvar ({unrealized_buy_sek:,.2f} kr) & USD i wallet ({sek_omkostnad:,.2f} kr).</p>
+                <h2 style="margin:0; font-size:1.5rem; color:#FFDE00;">⚡ RESULTAT INKL. INSÄTTNINGAR: {total_eget_kapital_resultat:,.2f} SEK</h2>
+                <p style="margin:6px 0 0 0; color:#E2E8F0;">
+                    Beräknat på nuvarande tillgångar ({total_innehav_sek:,.2f} kr) + uttag minus totalt insatt belopp ({total_deposits_sek:,.2f} kr) samt skatt.
+                </p>
             </div>
             """, unsafe_allow_html=True)
 
@@ -801,3 +811,5 @@ with tab1:
             st.dataframe(pd.DataFrame(k4_card_export_rows), use_container_width=True)
             st.write("**Valutaförsäljningar:**")
             st.dataframe(pd.DataFrame(k4_valuta_export_rows), use_container_width=True)
+'''
+print("Code generated successfully.")
