@@ -21,11 +21,11 @@
         "Buy_USD": 25.0,
         "Buy_Currency_Rate": 9.5004,
         "Buy_SEK": 237.51,
-        "Sell_Date": "",
-        "Sell_USD": null,
-        "Sell_Currency_Rate": null,
-        "Sell_SEK": null,
-        "Status": "Äger kvar"
+        "Sell_Date": "2026-08-18",
+        "Sell_USD": 22.15,
+        "Sell_Currency_Rate": 9.5249,
+        "Sell_SEK": 210.98,
+        "Status": "Såld"
     },
     {
         "Bild": "https://static.courtyard.io/graded-cards-scans/CGC%206120835026/slab_front.jpg?w=64&q=75",
@@ -35,10 +35,10 @@
         "Buy_USD": 25.0,
         "Buy_Currency_Rate": 9.5249,
         "Buy_SEK": 238.12,
-        "Sell_Date": "",
-        "Sell_USD": null,
-        "Sell_Currency_Rate": null,
-        "Sell_SEK": null,
-        "Status": "Äger kvar"
+        "Sell_Date": "2026-08-18",
+        "Sell_USD": 22.0,
+        "Sell_Currency_Rate": 9.5249,
+        "Sell_SEK": 209.55,
+        "Status": "Såld"
     }
 ]
