@@ -26,5 +26,19 @@
         "Sell_Currency_Rate": null,
         "Sell_SEK": null,
         "Status": "Äger kvar"
+    },
+    {
+        "Bild": "https://static.courtyard.io/graded-cards-scans/CGC%206120835026/slab_front.jpg?w=64&q=75",
+        "Länk": "https://courtyard.io/asset/db8a6f3e3069ac7124921db31026ee5f32e1d4c0b7dd9fae19a2ea3c220b5968",
+        "Name": "2020 Shiny Star V #060/190 Toxtricity VMAX - Holo (CGC 10 PRISTINE)",
+        "Buy_Date": "2026-08-18",
+        "Buy_USD": 25.0,
+        "Buy_Currency_Rate": 9.5249,
+        "Buy_SEK": 238.12,
+        "Sell_Date": "",
+        "Sell_USD": null,
+        "Sell_Currency_Rate": null,
+        "Sell_SEK": null,
+        "Status": "Äger kvar"
     }
 ]
