@@ -279,11 +279,25 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Admin Inloggning Längst Uppe
-top_col1, top_col2 = st.columns([3, 1])
+# Hämta dagens aktuella USD/SEK-kurs
+current_live_rate = get_usd_sek_rate(date.today())
+
+# Admin Inloggning & Aktuell Kurs Längst Uppe (Uppdelat i 3 kolumner)
+top_col1, top_col2, top_col3 = st.columns([2.2, 1.1, 1])
+
 with top_col1:
     st.caption("Pikachu-powered spårning av dina Pokémon- och samlarkort för Skatteverket.")
+
 with top_col2:
+    # Den röda rutan i din bild – visar aktuell växelkurs
+    st.markdown(
+        f"<div style='text-align: right; padding-right: 10px; font-weight: bold; color: #FFDE00; font-size: 1.05rem;'>"
+        f"💱 1 USD = {current_live_rate:.2f} SEK"
+        f"</div>", 
+        unsafe_allow_html=True
+    )
+
+with top_col3:
     if not st.session_state.is_admin:
         with st.popover("🔑 Logga in som Admin"):
             pwd_input = st.text_input("Lösenord", type="password", key="admin_pwd_input")
