@@ -40,5 +40,19 @@
         "Sell_Currency_Rate": 9.5249,
         "Sell_SEK": 209.55,
         "Status": "Såld"
+    },
+    {
+        "Bild": "https://static.courtyard.io/graded-cards-scans/CGC%206200765198/slab_front.jpg?w=64&q=75",
+        "Länk": "https://courtyard.io/asset/b381ba2e0975101292bf441e800d230ed67600de3e8b315f551301d770bbb6b4",
+        "Name": "2025 Black Star Promos - Mega Evolution MEP EN #010 Riolu - Mega Evolution Elite Trainer Box (Holo) (CGC 9.5 MINT+)",
+        "Buy_Date": "2026-08-25",
+        "Buy_USD": 25.0,
+        "Buy_Currency_Rate": 9.4896,
+        "Buy_SEK": 237.24,
+        "Sell_Date": "",
+        "Sell_USD": null,
+        "Sell_Currency_Rate": null,
+        "Sell_SEK": null,
+        "Status": "Äger kvar"
     }
 ]
