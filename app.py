@@ -415,9 +415,77 @@ if st.session_state.is_admin:
 
         if deposits:
             st.divider()
-            st.subheader("📜 Registrerade Insättningar")
+            
+            if "edit_deposits_mode" not in st.session_state:
+                st.session_state.edit_deposits_mode = False
+
+            col_dep_head, col_dep_btn = st.columns([4, 1])
+            with col_dep_head:
+                st.subheader("📜 Registrerade Insättningar")
+            with col_dep_btn:
+                if not st.session_state.edit_deposits_mode:
+                    if st.button("✏️ Redigera Insättningar", use_container_width=True):
+                        st.session_state.edit_deposits_mode = True
+                        st.rerun()
+
             df_d = pd.DataFrame(deposits)
-            st.dataframe(df_d, use_container_width=True)
+            df_d["Datum"] = pd.to_datetime(df_d["Datum"], errors="coerce").dt.date
+
+            dep_column_config = {
+                "Datum": st.column_config.DateColumn("Datum", width="medium"),
+                "USD": st.column_config.NumberColumn("USD ($)", format="$%.2f", width="medium"),
+                "Betalt_SEK": st.column_config.NumberColumn("Betalt SEK", format="%.2f kr", width="medium")
+            }
+
+            if st.session_state.edit_deposits_mode:
+                st.info("💡 **Redigeringsläge (Insättningar):** Ändra värden fritt nedan och klicka på **'⚡ Spara ändringar i insättningar'**.")
+                
+                with st.form("deposits_edit_form"):
+                    edited_df_d = st.data_editor(
+                        df_d,
+                        column_config=dep_column_config,
+                        num_rows="dynamic",
+                        use_container_width=True,
+                        key="deposits_editor_form"
+                    )
+                    submit_dep_save = st.form_submit_button("⚡ Spara ändringar i insättningar", type="primary", use_container_width=True)
+
+                if submit_dep_save:
+                    updated_deposits = edited_df_d.to_dict(orient="records")
+                    clean_deposits = []
+                    for dep in updated_deposits:
+                        if pd.notna(dep.get("Datum")) and dep.get("Datum"):
+                            dep["Datum"] = str(dep["Datum"])
+                        else:
+                            dep["Datum"] = str(date.today())
+                        dep["USD"] = float(dep.get("USD") or 0.0)
+                        dep["Betalt_SEK"] = float(dep.get("Betalt_SEK") or 0.0)
+                        clean_deposits.append(dep)
+
+                    if save_json_to_github(DEPOSITS_FILE, clean_deposits, deposits_sha, "Manuell redigering av insättningar"):
+                        st.session_state.edit_deposits_mode = False
+                        st.success("Ändringarna i insättningar har sparats!")
+                        st.rerun()
+
+                if st.button("❌ Avbryt redigering utan att spara", key="cancel_dep_edit"):
+                    st.session_state.edit_deposits_mode = False
+                    st.rerun()
+            else:
+                for idx, row in df_d.iterrows():
+                    col_del, col_data = st.columns([0.3, 9.7])
+                    with col_del:
+                        if st.button("🗑️", key=f"del_dep_{idx}", help="Radera denna insättning"):
+                            deposits.pop(idx)
+                            if save_json_to_github(DEPOSITS_FILE, deposits, deposits_sha, f"Tog bort insättning rad {idx}"):
+                                st.rerun()
+                    with col_data:
+                        row_df = pd.DataFrame([row])
+                        st.dataframe(
+                            row_df,
+                            column_config=dep_column_config,
+                            hide_index=True,
+                            use_container_width=True
+                        )
 
     # --- FLIK 4: REGISTRERA UTTAG TILL BANK (ENBART ADMIN) ---
     with tab4:
