@@ -518,8 +518,31 @@ if st.session_state.is_admin:
         if withdrawals:
             st.divider()
             st.subheader("📜 Registrerade Bankuttag")
+            
             df_w = pd.DataFrame(withdrawals)
-            st.dataframe(df_w, use_container_width=True)
+            df_w["Datum"] = pd.to_datetime(df_w["Datum"], errors="coerce").dt.date
+
+            withdrawal_column_config = {
+                "Datum": st.column_config.DateColumn("Datum", width="medium"),
+                "USD": st.column_config.NumberColumn("USD ($)", format="$%.2f", width="medium"),
+                "Erhållen_SEK": st.column_config.NumberColumn("Erhållen SEK", format="%.2f kr", width="medium")
+            }
+
+            for idx, row in df_w.iterrows():
+                col_del, col_data = st.columns([0.3, 9.7])
+                with col_del:
+                    if st.button("🗑️", key=f"del_with_{idx}", help="Radera detta uttag"):
+                        withdrawals.pop(idx)
+                        if save_json_to_github(WITHDRAWALS_FILE, withdrawals, withdrawals_sha, f"Tog bort uttag rad {idx}"):
+                            st.rerun()
+                with col_data:
+                    row_df = pd.DataFrame([row])
+                    st.dataframe(
+                        row_df,
+                        column_config=withdrawal_column_config,
+                        hide_index=True,
+                        use_container_width=True
+                    )
 
 # --- FLIK 1: ÖVERSIKT & SKATT ---
 with tab1:
