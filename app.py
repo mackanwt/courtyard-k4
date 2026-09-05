@@ -180,9 +180,10 @@ def load_json_from_github(filename, default_value):
         file_content = repo.get_contents(filename)
         data = json.loads(file_content.decoded_content.decode("utf-8"))
         return data, file_content.sha
-    except Exception:
+    except Exception as e:
+        st.error(f"Kunde inte ladda {filename} från GitHub: {e}")
         return default_value, None
-
+        
 def save_json_to_github(filename, data, sha, commit_message="Uppdatera data"):
     try:
         repo = get_github_repo()
