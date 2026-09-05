@@ -49,11 +49,11 @@
         "Buy_USD": 25.0,
         "Buy_Currency_Rate": 9.4896,
         "Buy_SEK": 237.24,
-        "Sell_Date": "",
-        "Sell_USD": null,
-        "Sell_Currency_Rate": null,
-        "Sell_SEK": null,
-        "Status": "Äger kvar"
+        "Sell_Date": "2026-09-02",
+        "Sell_USD": 17.9,
+        "Sell_Currency_Rate": 9.6368,
+        "Sell_SEK": 172.5,
+        "Status": "Såld"
     },
     {
         "Bild": "https://static.courtyard.io/graded-cards-scans/CGC%206200769243/slab_front.jpg?w=64&q=75",
@@ -61,12 +61,12 @@
         "Name": "2024 Journey Together - JTG EN #165/159 Swinub - Illustration Rare Holo (CGC 10 GEM MINT)",
         "Buy_Date": "2026-09-01",
         "Buy_USD": 25.0,
-        "Buy_Currency_Rate": 10.5,
-        "Buy_SEK": 262.5,
-        "Sell_Date": "",
-        "Sell_USD": null,
-        "Sell_Currency_Rate": null,
-        "Sell_SEK": null,
-        "Status": "Äger kvar"
+        "Buy_Currency_Rate": 9.5897,
+        "Buy_SEK": 239.74,
+        "Sell_Date": "2026-09-04",
+        "Sell_USD": 19.21,
+        "Sell_Currency_Rate": 9.5513,
+        "Sell_SEK": 183.48,
+        "Status": "Såld"
     }
 ]
