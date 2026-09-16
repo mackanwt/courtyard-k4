@@ -77,10 +77,10 @@
         "Buy_USD": 25.0,
         "Buy_Currency_Rate": 9.5687,
         "Buy_SEK": 239.22,
-        "Sell_Date": "",
-        "Sell_USD": null,
-        "Sell_Currency_Rate": null,
-        "Sell_SEK": null,
-        "Status": "Äger kvar"
+        "Sell_Date": "2026-09-16",
+        "Sell_USD": 19.53,
+        "Sell_Currency_Rate": 9.7837,
+        "Sell_SEK": 191.08,
+        "Status": "Såld"
     }
 ]
