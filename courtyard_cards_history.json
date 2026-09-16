@@ -82,5 +82,19 @@
         "Sell_Currency_Rate": 9.7837,
         "Sell_SEK": 191.08,
         "Status": "Såld"
+    },
+    {
+        "Bild": "https://static.courtyard.io/graded-cards-scans/CGC%206080956066/slab_front.jpg?w=64&q=75",
+        "Länk": "https://courtyard.io/asset/48551159c5e67878a446ebba17d8ee9a4bce670ac0e012bb0d5df4a4c54bf1cb",
+        "Name": "2024 Prismatic Evolutions - PRE EN #026/131 Glaceon ex - Surprise Box (Prismatic Evolutions Stamp) (Holo) (CGC 9 MINT)",
+        "Buy_Date": "2026-09-16",
+        "Buy_USD": 19.0,
+        "Buy_Currency_Rate": 9.7837,
+        "Buy_SEK": 185.89,
+        "Sell_Date": "",
+        "Sell_USD": null,
+        "Sell_Currency_Rate": null,
+        "Sell_SEK": null,
+        "Status": "Äger kvar"
     }
 ]
