@@ -96,5 +96,19 @@
         "Sell_Currency_Rate": 9.811,
         "Sell_SEK": 111.26,
         "Status": "Såld"
+    },
+    {
+        "Bild": "https://static.courtyard.io/graded-cards-renders/CGC%206200813124/nft_image.jpg?w=384&q=75",
+        "Länk": "https://courtyard.io/asset/ac062f6c2a61eaca92c4e0075d4a55841533273b12b99dc49aca5eb1ad5acbb5",
+        "Name": "2022 Lost Origin #146/196 Hisuian Zoroark V - Holo (CGC 9 MINT)",
+        "Buy_Date": "2026-09-24",
+        "Buy_USD": 25.0,
+        "Buy_Currency_Rate": 9.9098,
+        "Buy_SEK": 247.75,
+        "Sell_Date": "",
+        "Sell_USD": null,
+        "Sell_Currency_Rate": null,
+        "Sell_SEK": null,
+        "Status": "Äger kvar"
     }
 ]
