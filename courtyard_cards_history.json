@@ -110,5 +110,19 @@
         "Sell_Currency_Rate": null,
         "Sell_SEK": null,
         "Status": "Äger kvar"
+    },
+    {
+        "Bild": "https://static.courtyard.io/graded-cards-renders/CGC%206065902024/nft_image.jpg?w=64&q=75",
+        "Länk": "https://courtyard.io/asset/7b8530a3f730127385f6a45d346a9dc6c3bab8289642095bd3f563f17c5c22ac",
+        "Name": "2025 Glory of the Rocket Gang - sv10 #103/098 Team Rocket's Wobbuffet - Art Rare Holo (CGC 10 PRISTINE)",
+        "Buy_Date": "2026-10-03",
+        "Buy_USD": 25.0,
+        "Buy_Currency_Rate": 10.0579,
+        "Buy_SEK": 251.45,
+        "Sell_Date": "",
+        "Sell_USD": null,
+        "Sell_Currency_Rate": null,
+        "Sell_SEK": null,
+        "Status": "Äger kvar"
     }
 ]
