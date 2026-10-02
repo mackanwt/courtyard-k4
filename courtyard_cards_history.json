@@ -105,11 +105,11 @@
         "Buy_USD": 25.0,
         "Buy_Currency_Rate": 9.9098,
         "Buy_SEK": 247.75,
-        "Sell_Date": "",
-        "Sell_USD": null,
-        "Sell_Currency_Rate": null,
-        "Sell_SEK": null,
-        "Status": "Äger kvar"
+        "Sell_Date": "2026-10-01",
+        "Sell_USD": 18.46,
+        "Sell_Currency_Rate": 10.0292,
+        "Sell_SEK": 185.14,
+        "Status": "Såld"
     },
     {
         "Bild": "https://static.courtyard.io/graded-cards-renders/CGC%206065902024/nft_image.jpg?w=64&q=75",
