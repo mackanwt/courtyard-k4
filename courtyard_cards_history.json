@@ -124,5 +124,19 @@
         "Sell_Currency_Rate": 9.9719,
         "Sell_SEK": 259.27,
         "Status": "Såld"
+    },
+    {
+        "Bild": "https://static.courtyard.io/graded-cards-scans/CGC%206075467243/slab_front.jpg?w=64&q=75",
+        "Länk": "https://courtyard.io/asset/a5e556a129e1af6960fc13532951d9a1d8065ca025cae0b944ce27ac96aa5b92",
+        "Name": "2025 Black Bolt - sv11B #132/086 Gurdurr - Art Rare Holo (CGC 10 GEM MINT)",
+        "Buy_Date": "2026-10-15",
+        "Buy_USD": 25.0,
+        "Buy_Currency_Rate": 9.9719,
+        "Buy_SEK": 249.3,
+        "Sell_Date": "",
+        "Sell_USD": null,
+        "Sell_Currency_Rate": null,
+        "Sell_SEK": null,
+        "Status": "Äger kvar"
     }
 ]
